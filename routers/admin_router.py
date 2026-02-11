@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
-from database import items_col, feedback_col
+from database import items_col, feedback_col, users_col
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -32,7 +32,37 @@ def get_admin_items(user: dict = Depends(admin_only)):
 
 @router.get("/feedbacks")
 def get_feedbacks(user: dict = Depends(admin_only)):
-    return [sanitize_item(fb) for fb in feedback_col.find().sort("date", -1)]
+    feedbacks = []
+    for fb in feedback_col.find().sort("date", -1):
+        feedbacks.append({
+            "_id": str(fb["_id"]),
+            "name": fb.get("name", "Anonymous"),
+            "email": fb.get("email"),
+            "message": fb.get("message"),
+            "date": fb.get("date").strftime("%Y-%m-%d %H:%M:%S") if fb.get("date") else "Unknown"
+        })
+    return feedbacks
+
+@router.get("/users")
+def get_all_users(user: dict = Depends(admin_only)):
+    users = list(users_col.find({}, {"password": 0})) # Don't send passwords
+    return [sanitize_item(u) for u in users]
+
+@router.post("/toggle_premium/{user_id}")
+def toggle_premium(user_id: str, admin: dict = Depends(admin_only)):
+    try:
+        user = users_col.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        new_status = not user.get("is_premium", False)
+        users_col.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"is_premium": new_status}}
+        )
+        return {"msg": f"Premium status updated to {new_status}"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/approve/{item_id}")
 def approve_item(item_id: str, user: dict = Depends(admin_only)):

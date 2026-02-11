@@ -10,6 +10,51 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/admin.css">
+  <style>
+    .admin-nav {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      background: white;
+      padding: 1rem;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .admin-nav button {
+      padding: 0.8rem 1.5rem;
+      border: none;
+      background: #f1f5f9;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--slate);
+      transition: all 0.3s;
+    }
+
+    .admin-nav button.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .badge-premium {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+  </style>
 </head>
 
 <body>
@@ -29,31 +74,92 @@
         <p>Total Items</p>
       </div>
       <div class="stat-pills">
+        <h3 id="totalUsers">-</h3>
+        <p>Active Users</p>
+      </div>
+      <div class="stat-pills">
         <h3 id="totalFeedback">-</h3>
         <p>User Feedbacks</p>
       </div>
     </div>
 
-    <div class="admin-table-container">
-      <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">Reports Management</h2>
-      <div style="overflow-x: auto;">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Item Name</th>
-              <th>Location</th>
-              <th>Reporter</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reportsTable">
-            <tr>
-              <td colspan="6" style="text-align:center; padding: 4rem;">📡 Fetching records...</td>
-            </tr>
-          </tbody>
-        </table>
+    <div class="admin-nav">
+      <button onclick="showSection('reports')" id="btn-reports" class="active">Reports</button>
+      <button onclick="showSection('users')" id="btn-users">Users</button>
+      <button onclick="showSection('feedback')" id="btn-feedback">Feedback</button>
+    </div>
+
+    <!-- Reports Section -->
+    <div id="section-reports" class="section active">
+      <div class="admin-table-container">
+        <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">Reports Management</h2>
+        <div style="overflow-x: auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Item Name</th>
+                <th>Location</th>
+                <th>Reporter</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="reportsTable">
+              <tr>
+                <td colspan="6" style="text-align:center; padding: 4rem;">📡 Fetching records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Section -->
+    <div id="section-users" class="section">
+      <div class="admin-table-container">
+        <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">User Management</h2>
+        <div style="overflow-x: auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTable">
+              <tr>
+                <td colspan="4" style="text-align:center; padding: 4rem;">📡 Loading users...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback Section -->
+    <div id="section-feedback" class="section">
+      <div class="admin-table-container">
+        <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">User Feedback</h2>
+        <div style="overflow-x: auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Message</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="feedbackTable">
+              <tr>
+                <td colspan="4" style="text-align:center; padding: 4rem;">📡 Loading feedback...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>
@@ -62,48 +168,53 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.href = "login.html";
 
+    function showSection(name) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.admin-nav button').forEach(b => b.classList.remove('active'));
+
+      document.getElementById('section-' + name).classList.add('active');
+      document.getElementById('btn-' + name).classList.add('active');
+    }
+
     async function fetchData() {
       try {
-        const itemsRes = await fetch("/api/admin/items", {
-          headers: { "Authorization": "Bearer " + token }
-        });
-        const fbRes = await fetch("/api/admin/feedbacks", {
-          headers: { "Authorization": "Bearer " + token }
-        });
+        const [items, users, feedbacks] = await Promise.all([
+          fetch("/api/admin/items", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json()),
+          fetch("/api/admin/users", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json()),
+          fetch("/api/admin/feedbacks", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json())
+        ]);
 
-        if (itemsRes.status === 403) {
+        if (items.detail === "Admin access required") {
           alert("🔒 Admin access required.");
           window.location.href = "index.html";
           return;
         }
 
-        const items = await itemsRes.json();
-        const feedbacks = await fbRes.json();
-
         document.getElementById("totalItems").innerText = items.length;
+        document.getElementById("totalUsers").innerText = users.length;
         document.getElementById("totalFeedback").innerText = feedbacks.length;
 
         renderItems(items);
+        renderUsers(users);
+        renderFeedback(feedbacks);
       } catch (e) { console.error(e); }
     }
 
     function renderItems(items) {
       const table = document.getElementById("reportsTable");
       table.innerHTML = "";
-
       items.forEach(item => {
         const row = document.createElement("tr");
         const typeClass = item.type === "lost" ? "color: #f43f5e" : "color: #10b981";
-
         row.innerHTML = `
                 <td style="font-weight: 700; ${typeClass}">${item.type.toUpperCase()}</td>
                 <td>${item.item_name}</td>
                 <td>${item.location}</td>
-                <td>${item.email}</td>
+                <td>${item.email || '-'}</td>
                 <td>${item.is_claimed ? "✅ Resolved" : "⌛ Active"}</td>
                 <td class="action-btns">
                     ${!item.is_claimed ? `<button class="btn-small btn-approve" onclick="approve('${item._id}')">Approve</button>` : ""}
-                    <button class="btn-small btn-remove" onclick="remove('${item._id}')">Delete</button>
+                    <button class="btn-small btn-remove" onclick="removeItem('${item._id}')">Delete</button>
                     <a href="/qr/${item._id}" target="_blank" class="btn-small" style="background:#eee; color:#333; text-decoration:none;">QR</a>
                 </td>
             `;
@@ -111,20 +222,56 @@
       });
     }
 
-    async function approve(id) {
-      await fetch(`/api/admin/approve/${id}`, {
+    function renderUsers(users) {
+      const table = document.getElementById("usersTable");
+      table.innerHTML = "";
+      users.forEach(user => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td style="font-weight:700;">${user.name}</td>
+                <td>${user.email}</td>
+                <td>${user.is_premium ? '<span class="badge-premium">💎 Premium</span>' : '<span style="color:var(--slate); font-size:0.8rem;">Standard</span>'}</td>
+                <td>
+                    <button class="btn-small" style="background:var(--primary); color:white;" onclick="togglePremium('${user._id}')">
+                        ${user.is_premium ? 'Revoke Premium' : 'Mark Premium'}
+                    </button>
+                </td>
+            `;
+        table.appendChild(row);
+      });
+    }
+
+    function renderFeedback(feedbacks) {
+      const table = document.getElementById("feedbackTable");
+      table.innerHTML = "";
+      feedbacks.forEach(fb => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td style="font-weight:700;">${fb.name}</td>
+                <td>${fb.email || 'Anonymous'}</td>
+                <td>${fb.message}</td>
+                <td>${fb.date}</td>
+            `;
+        table.appendChild(row);
+      });
+    }
+
+    async function togglePremium(id) {
+      await fetch(`/api/admin/toggle_premium/${id}`, {
         method: "POST",
         headers: { "Authorization": "Bearer " + token }
       });
       fetchData();
     }
 
-    async function remove(id) {
+    async function approve(id) {
+      await fetch(`/api/admin/approve/${id}`, { method: "POST", headers: { "Authorization": "Bearer " + token } });
+      fetchData();
+    }
+
+    async function removeItem(id) {
       if (!confirm("Permanently delete this item?")) return;
-      await fetch(`/api/admin/delete/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": "Bearer " + token }
-      });
+      await fetch(`/api/admin/delete/${id}`, { method: "DELETE", headers: { "Authorization": "Bearer " + token } });
       fetchData();
     }
 
