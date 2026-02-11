@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="browser.html">Browse</a>
+      <a href="report_lost.html">Report Lost</a>
+      <a href="report_found.html">Report Found</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </nav>
+  </header>
+
+  <main style="padding: 3rem 5%; max-width: 1200px; margin: 0 auto;">
+    <div class="dashboard-header">
+      <h1>My History</h1>
+      <p>Overview of your reported items and status.</p>
+    </div>
+
+    <div class="section-title">📌 Lost Reports</div>
+    <div id="lostSection" class="card-grid"></div>
+
+    <div class="section-title">📦 Found Reports</div>
+    <div id="foundSection" class="card-grid"></div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "login.html";
+
+    async function checkAdmin() {
+      try {
+        const res = await fetch("/api/admin/is_admin", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const data = await res.json();
+        if (data.is_admin) {
+          const nav = document.getElementById("navbar");
+          const adminLink = document.createElement("a");
+          adminLink.href = "admin.html";
+          adminLink.style.color = "#fbbf24";
+          adminLink.innerHTML = "🛠 Admin";
+          nav.appendChild(adminLink);
+        }
+      } catch (e) { }
+    }
+    checkAdmin();
+
+    async function fetchDashboard() {
+      const res = await fetch("/api/user/dashboard", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      renderCards("lostSection", data.lost_reports);
+      renderCards("foundSection", data.found_reports);
+    }
+
+    function renderCards(containerId, items) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+
+      if (!items || !items.length) {
+        container.innerHTML = `<div class="empty-state">No items recorded here yet.</div>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        const badgeClass = item.is_claimed ? "badge-neutral" : "badge-success";
+        const badgeText = item.is_claimed ? "Resolved" : "Active";
+
+        card.innerHTML = `
+                <img src="${item.image_url}" class="card-img" onerror="this.src='https://placehold.co/600x400?text=Scan+Data'">
+                <div class="card-body">
+                    <span class="badge ${badgeClass}">${badgeText}</span>
+                    <h4>${item.item_name}</h4>
+                    <div class="card-meta">
+                        📍 ${item.location}<br>
+                        📅 ${item.date}
+                    </div>
+                    <button class="btn-delete" onclick="deleteItem('${item._id}')">Remove Report</button>
+                </div>
+            `;
+        container.appendChild(card);
+      });
+    }
+
+    async function deleteItem(id) {
+      if (!confirm("Are you sure? This report will be permanently removed.")) return;
+      await fetch(`/api/items/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchDashboard();
+    }
+
+    function logout() {
+      localStorage.removeItem("token");
+      window.location.href = "login.html";
+    }
+
+    fetchDashboard();
+  </script>
+
+</body>
+
+</html>

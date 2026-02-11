@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Recovery | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/qr.css">
+  <!-- QR Code Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+
+  <div class="qr-container">
+    <div class="qr-header">
+      <h1>🔍 Recovery Shield</h1>
+    </div>
+
+    <div id="loading" style="text-align: center; padding: 3rem;">
+      <p>📡 Accessing secure item record...</p>
+    </div>
+
+    <div class="qr-card" id="itemDetails" style="display: none;">
+      <div class="alert-banner">
+        ⚠️ DO NOT scan this unless you have found an item.
+      </div>
+
+      <div class="recovery-qr-wrapper">
+        <div id="qrcode"></div>
+        <p class="qr-hint">Scan to open this page on your phone</p>
+      </div>
+
+      <img id="itemImage" class="qr-img" src="" alt="Missing Item" style="display: none;">
+
+      <div class="qr-info">
+        <h2 id="itemName">Loading...</h2>
+        <p id="itemDesc" class="desc"></p>
+
+        <div class="qr-meta">
+          <p>📍 <strong>Last Seen:</strong> <span id="itemLocation">-</span></p>
+          <p>📅 <strong>Date Reported:</strong> <span id="itemDate">-</span></p>
+        </div>
+
+        <div class="offline-actions">
+          <p style="text-align: center; font-weight: 700; margin-bottom: 1rem; color: var(--primary);">
+            HAVE YOU FOUND THIS ITEM?
+          </p>
+          <button onclick="reportFound()" class="btn btn-found" style="width: 100%;">
+            ✅ Yes, I have found this item
+          </button>
+          <button onclick="window.print()" class="btn btn-print"
+            style="width: 100%; background: #e2e8f0; color: #475569; border: none; margin-top: 0.5rem; cursor: pointer;">
+            🖨️ Print for Physical Tag
+          </button>
+          <a href="/index.html" class="btn btn-outline no-print"
+            style="width: 100%; border: 2px solid #e2e8f0; margin-top: 0.5rem; text-align: center; color: var(--slate); text-decoration: none;">
+            ❌ No, I just scanned to check
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div id="errorBox" style="display: none; text-align: center;" class="alert-banner">
+      ❌ Record not found or link has expired.
+    </div>
+
+    <div style="text-align:center; margin-top: 2rem; font-size: 0.8rem; color: var(--slate);">
+      Powered by LostLink AI Project • Secure Asset Recovery
+    </div>
+  </div>
+
+  <script>
+    const itemId = window.location.pathname.split("/").pop();
+
+    async function loadItem() {
+      try {
+        const res = await fetch(`/api/items/${itemId}`);
+        if (!res.ok) throw new Error();
+        const item = await res.json();
+
+        document.getElementById("itemName").textContent = item.item_name;
+        document.getElementById("itemDesc").textContent = item.description;
+        document.getElementById("itemLocation").textContent = item.location;
+        document.getElementById("itemDate").textContent = `${item.date} at ${item.time}`;
+
+        if (item.image_url) {
+          const img = document.getElementById("itemImage");
+          img.src = item.image_url;
+          img.style.display = "block";
+        }
+
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("itemDetails").style.display = "block";
+      } catch (err) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("errorBox").style.display = "block";
+      }
+    }
+
+    function reportFound() {
+      const name = document.getElementById("itemName").textContent;
+      // Redirect to report_found page with prefilled name as query param (if requested)
+      // or just standard report page
+      if (confirm("Great! You will be redirected to our reporting form to notify the owner. Would you like to proceed?")) {
+        window.location.href = `/report_found.html?found_ref=${itemId}&name=${encodeURIComponent(name)}`;
+      }
+    }
+
+    // Generate QR Code for Current Page
+    new QRCode(document.getElementById("qrcode"), {
+      text: window.location.href,
+      width: 128,
+      height: 128,
+      colorDark: "#0047ab",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+
+    loadItem();
+  </script>
+
+</body>
+
+</html>

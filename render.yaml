@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: lostlink-ai
+    env: docker
+    plan: free
+    region: singapore # Change to your preferred region
+    envVars:
+      - key: MONGO_URI
+        sync: false # Set manually in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: BASE_URL
+        sync: false # Should be your Render URL (e.g. https://lostlink-ai.onrender.com)
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE
+        sync: false
+    # Optional: Persistence for uploads (Requires a paid plan on Render)
+    # disk:
+    #   name: uploads-disk
+    #   mountPath: /app/uploads
+    #   sizeGB: 1

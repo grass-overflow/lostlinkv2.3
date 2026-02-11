@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Found | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/forms.css">
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="browser.html">Browse</a>
+      <a href="report_lost.html">Report Lost</a>
+      <a href="dashboard.html">Dashboard</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="form-container">
+      <div class="form-header">
+        <h2>Found Something?</h2>
+        <p>Report the item so the rightful owner can find it.</p>
+      </div>
+
+      <form id="reportForm">
+        <div class="form-group">
+          <label>Item Name</label>
+          <input type="text" id="itemName" name="item_name" placeholder="e.g. Keyring, Glasses" required>
+        </div>
+
+        <div class="form-group">
+          <label>Item Image</label>
+          <input type="file" id="imageInput" name="image" accept="image/*" required>
+        </div>
+
+        <div class="ai-scan-wrapper">
+          <button type="button" id="aiScanBtn" class="btn-ai">
+            <span>✨</span> AI Description Check
+          </button>
+          <p id="aiMsg" style="font-size: 0.75rem; color: var(--slate); margin-top: 8px;"></p>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="description" name="description" rows="4"
+            placeholder="Be descriptive, but keep some identifying details secret for verification."
+            required></textarea>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Date Found</label>
+            <input type="date" name="date" required>
+          </div>
+          <div class="form-group">
+            <label>Time Found</label>
+            <input type="time" name="time" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Exact Location</label>
+          <input type="text" name="location" placeholder="e.g. Near Building C entrance" required>
+        </div>
+
+        <div class="form-group">
+          <label>Your Contact Info</label>
+          <input type="text" name="contact_info" placeholder="Email or Phone" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Report</button>
+        <div id="responseMsg" class="message-box"></div>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2025 LostLink AI Project.
+  </footer>
+
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "login.html";
+
+    // Prefill from QR Scan if active
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('name')) {
+      document.getElementById("itemName").value = `Recovery: ${params.get('name')}`;
+      document.getElementById("description").placeholder = "Note: This item was found via a scan of report " + params.get('found_ref');
+    }
+
+    // AI Check
+    const aiScanBtn = document.getElementById("aiScanBtn");
+    const aiMsg = document.getElementById("aiMsg");
+    const imageInput = document.getElementById("imageInput");
+    const descArea = document.getElementById("description");
+
+    aiScanBtn.onclick = async () => {
+      if (!imageInput.files.length) {
+        alert("Upload an image first.");
+        return;
+      }
+      aiScanBtn.disabled = true;
+      aiMsg.innerText = "🌀 Processing images...";
+
+      const fd = new FormData();
+      fd.append("image", imageInput.files[0]);
+
+      try {
+        const res = await fetch("/api/describe_image", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token },
+          body: fd
+        });
+        const data = await res.json();
+        if (res.ok) {
+          descArea.value = data.description;
+          aiMsg.innerText = "✅ AI description generated.";
+        } else {
+          aiMsg.innerText = "❌ Failed: " + data.detail;
+        }
+      } catch (e) { aiMsg.innerText = "❌ Network error."; }
+      finally { aiScanBtn.disabled = false; }
+    };
+
+    // Form Submit
+    document.getElementById("reportForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("responseMsg");
+      msg.className = "message-box";
+      msg.innerText = "⏳ Recording item...";
+      msg.style.display = "block";
+
+      const fd = new FormData(e.target);
+      try {
+        const res = await fetch("/api/report_found", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token },
+          body: fd
+        });
+        if (res.ok) {
+          msg.className = "message-box success";
+          msg.innerText = "✅ Found report filed! Check matching items periodically.";
+          e.target.reset();
+        } else {
+          const data = await res.json();
+          msg.className = "message-box error";
+          msg.innerText = "❌ Error: " + data.detail;
+        }
+      } catch (err) {
+        msg.className = "message-box error";
+        msg.innerText = "❌ Connection failed.";
+      }
+    };
+  </script>
+
+</body>
+
+</html>

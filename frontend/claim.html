@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claim Ownership | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/forms.css">
+</head>
+
+<body>
+
+  <a href="browser.html"
+    style="position: fixed; top: 2rem; left: 2rem; text-decoration: none; color: var(--primary); font-weight: 700;">←
+    Back to Browser</a>
+
+  <div class="form-container">
+    <div class="form-header">
+      <h2>Verify Ownership</h2>
+      <p>Your details will be shared with the person who found the item.</p>
+    </div>
+
+    <form id="claimForm">
+      <div class="form-group">
+        <label>Your Full Name</label>
+        <input type="text" name="name" placeholder="John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label>Preferred Contact (Email/Phone)</label>
+        <input type="text" name="contact" placeholder="How should they reach you?" required>
+      </div>
+
+      <div class="form-group">
+        <label>Message/Proof of Ownership</label>
+        <textarea name="proof" rows="4"
+          placeholder="Describe unique features or mention what's inside to help verification..."></textarea>
+      </div>
+
+      <input type="hidden" id="item_id" name="item_id">
+
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Claim Request</button>
+      <div id="responseMsg" class="message-box"></div>
+    </form>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const itemId = params.get("item_id");
+    if (!itemId) window.location.href = "browser.html";
+    document.getElementById("item_id").value = itemId;
+
+    const form = document.getElementById("claimForm");
+    const msg = document.getElementById("responseMsg");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      msg.className = "message-box";
+      msg.innerText = "⏳ Processing submission...";
+      msg.style.display = "block";
+
+      const fd = new FormData(form);
+      try {
+        const res = await fetch(`/api/claim/${itemId}`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (res.ok) {
+          msg.className = "message-box success";
+          msg.innerText = "✅ Request sent! The finder will receive your contact details.";
+          form.reset();
+        } else {
+          const data = await res.json();
+          msg.className = "message-box error";
+          msg.innerText = "❌ " + (data.detail || "Error submitting claim.");
+        }
+      } catch (err) {
+        msg.className = "message-box error";
+        msg.innerText = "❌ Network failure.";
+      }
+    };
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browse Items | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/browser.css">
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="report_lost.html">Report Lost</a>
+      <a href="report_found.html">Report Found</a>
+      <a href="dashboard.html">My Dashboard</a>
+    </nav>
+  </header>
+
+  <section class="browser-hero">
+    <h1>Public Item Registry</h1>
+    <p>Viewing all items reported as found. If you recognize something that belongs to you, start a verification claim.
+    </p>
+  </section>
+
+  <main>
+    <div id="itemsGrid" class="item-grid">
+      <div class="empty-state" style="padding: 10rem;">🌀 Synchronizing database entries...</div>
+    </div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem("token");
+
+    async function checkAdmin() {
+      if (!token) return;
+      try {
+        const res = await fetch("/api/admin/is_admin", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const data = await res.json();
+        if (data.is_admin) {
+          const nav = document.getElementById("navbar");
+          const adminLink = document.createElement("a");
+          adminLink.href = "admin.html";
+          adminLink.style.color = "#fbbf24";
+          adminLink.innerText = "🛠 Admin";
+          nav.appendChild(adminLink);
+        }
+      } catch (e) { }
+    }
+    checkAdmin();
+
+    async function loadItems() {
+      try {
+        const res = await fetch("/api/browse");
+        const items = await res.json();
+        const grid = document.getElementById("itemsGrid");
+        grid.innerHTML = "";
+
+        if (!items || items.length === 0) {
+          grid.innerHTML = `<div class="empty-state">No open found reports available at the moment.</div>`;
+          return;
+        }
+
+        items.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "item-card";
+          const priorityBadge = item.priority ? `<div class="priority-badge">🔥 Urgent</div>` : "";
+
+          card.innerHTML = `
+                    <div class="img-wrapper">
+                        ${priorityBadge}
+                        <div class="type-badge">FOUND</div>
+                        <img src="${item.image_url}" class="item-img" onerror="this.src='https://placehold.co/600x400?text=Item+Registry'">
+                    </div>
+                    <div class="card-content">
+                        <h3>${item.item_name}</h3>
+                        <p class="description">${item.description}</p>
+                        <div class="item-details">
+                            <p>📍 ${item.location}</p>
+                            <p>📅 ${item.date} at ${item.time}</p>
+                        </div>
+                        <a href="claim.html?item_id=${item._id}" class="btn-action">📝 Initiate Claim</a>
+                    </div>
+                `;
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        document.getElementById("itemsGrid").innerHTML = `<div class="empty-state" style="color: var(--danger);">❌ Connection failure while loading items.</div>`;
+      }
+    }
+
+    if (token) {
+      const nav = document.getElementById("navbar");
+      const logoutLink = document.createElement("a");
+      logoutLink.href = "#";
+      logoutLink.textContent = "Logout";
+      logoutLink.onclick = () => {
+        localStorage.removeItem("token");
+        window.location.reload();
+      };
+      nav.appendChild(logoutLink);
+    } else {
+      const nav = document.getElementById("navbar");
+      const loginLink = document.createElement("a");
+      loginLink.href = "login.html";
+      loginLink.textContent = "Login";
+      nav.appendChild(loginLink);
+    }
+
+    loadItems();
+  </script>
+
+</body>
+
+</html>

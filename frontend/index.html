@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LostLink AI | Project Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <style>
+    .hero {
+      padding: 6rem 5%;
+      text-align: center;
+      background: linear-gradient(135deg, #f0f4ff 0%, #e6e9f0 100%);
+      clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%);
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero span {
+      color: var(--primary);
+    }
+
+    .hero p {
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+      color: var(--slate);
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+
+    .stats-section {
+      padding: 4rem 5%;
+      margin-top: -4rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      padding: 2.5rem;
+      border-radius: 32px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-item h2 {
+      font-size: 2.5rem;
+      color: var(--primary);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="browser.html">Browse</a>
+      <a href="report_lost.html">Report Lost</a>
+      <a href="report_found.html">Report Found</a>
+      <a href="dashboard.html">My Dashboard</a>
+      <a href="whats_new.html">Updates</a>
+      <a href="premium.html" style="color: #6366f1; font-weight: 800;">✨ Premium</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Find What's <span>Lost</span>.<br>Help what's <span>Found</span>.</h1>
+      <p>A smart student project utilizing Machine Learning to help people recover their lost belongings. Simple,
+        effective, and AI-powered.</p>
+      <div class="btn-group">
+        <a href="report_lost.html" class="btn btn-primary">Report Lost Item</a>
+        <a href="report_found.html" class="btn"
+          style="background: white; border: 2px solid var(--primary); color: var(--primary);">I Found Something</a>
+      </div>
+    </section>
+
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <h2 id="totalCount">-</h2>
+          <p>TOTAL REPORTS</p>
+        </div>
+        <div class="stat-item">
+          <h2 id="foundCount" style="color: #10b981;">-</h2>
+          <p>MATCHES FOUND</p>
+        </div>
+        <div class="stat-item">
+          <h2 id="lostCount" style="color: #f43f5e;">-</h2>
+          <p>STILL MISSING</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 LostLink AI Project.</p>
+    <p class="credits">Built by Rohith and Rohan</p>
+  </footer>
+
+  <script>
+    const nav = document.getElementById("navbar");
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      // Logout setup
+      const logoutLink = document.createElement("a");
+      logoutLink.href = "#";
+      logoutLink.textContent = "Logout";
+      logoutLink.onclick = () => {
+        localStorage.removeItem("token");
+        window.location.reload();
+      };
+      nav.appendChild(logoutLink);
+
+      // Admin check
+      fetch("/api/admin/is_admin", {
+        headers: { "Authorization": "Bearer " + token }
+      }).then(r => r.json()).then(data => {
+        if (data.is_admin) {
+          const adminLink = document.createElement("a");
+          adminLink.href = "admin.html";
+          adminLink.style.color = "#fbbf24";
+          adminLink.innerText = "🛠 Admin";
+          nav.appendChild(adminLink);
+        }
+      });
+    } else {
+      const loginLink = document.createElement("a");
+      loginLink.href = "login.html";
+      loginLink.textContent = "Login";
+      nav.appendChild(loginLink);
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        document.getElementById("totalCount").textContent = data.total_items;
+        document.getElementById("foundCount").textContent = data.found_items;
+        document.getElementById("lostCount").textContent = data.lost_items;
+      } catch (e) { }
+    }
+    loadStats();
+  </script>
+
+</body>
+
+</html>

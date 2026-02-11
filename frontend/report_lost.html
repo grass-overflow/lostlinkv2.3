@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Lost | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/forms.css">
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="browser.html">Browse</a>
+      <a href="report_found.html">Report Found</a>
+      <a href="dashboard.html">Dashboard</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="form-container">
+      <div class="form-header">
+        <h2>Lost Something?</h2>
+        <p>Tell the AI about your item to start the matching process.</p>
+      </div>
+
+      <form id="reportForm">
+        <div class="form-group">
+          <label>Item Name</label>
+          <input type="text" name="item_name" placeholder="e.g. Black Wallet, iPhone 13" required>
+        </div>
+
+        <div class="form-group">
+          <label>Add a Photo (Recommended for AI)</label>
+          <input type="file" id="imageInput" name="image" accept="image/*">
+        </div>
+
+        <div class="ai-scan-wrapper">
+          <button type="button" id="aiScanBtn" class="btn-ai">
+            <span>✨</span> Smart Scan (Auto-Describe)
+          </button>
+          <p id="aiMsg" style="font-size: 0.75rem; color: var(--slate); margin-top: 8px;"></p>
+        </div>
+
+        <div class="form-group">
+          <label>Detailed Description</label>
+          <textarea id="description" name="description" rows="4" placeholder="Mention color, brand, or unique marks..."
+            required></textarea>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Date Lost</label>
+            <input type="date" name="date" required>
+          </div>
+          <div class="form-group">
+            <label>Approx. Time</label>
+            <input type="time" name="time" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Last Seen Location</label>
+          <input type="text" name="location" placeholder="e.g. Central Library, Cafeteria" required>
+        </div>
+
+        <div class="form-group">
+          <label>Contact Info</label>
+          <input type="text" name="contact_info" placeholder="Email or Phone Number" required>
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <input type="checkbox" name="priority">
+            <span>🔥 Mark as <strong>High Priority</strong> (Advanced Matching)</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="wants_call">
+            <span>📞 Notify me via Phone Call if found</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="generate_qr" checked>
+            <span>🏷️ Generate Recovery QR Code</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Post Report</button>
+        <div id="responseMsg" class="message-box"></div>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2025 LostLink AI Project.
+  </footer>
+
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "login.html";
+
+    // Admin Navbar Check
+    async function checkAdmin() {
+      try {
+        const res = await fetch("/api/admin/is_admin", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const data = await res.json();
+        if (data.is_admin) {
+          const nav = document.getElementById("navbar");
+          const adminLink = document.createElement("a");
+          adminLink.href = "admin.html";
+          adminLink.style.color = "#fbbf24";
+          adminLink.innerText = "🛠 Admin";
+          nav.appendChild(adminLink);
+        }
+      } catch (e) { }
+    }
+    checkAdmin();
+
+    // AI Recognition
+    const aiScanBtn = document.getElementById("aiScanBtn");
+    const aiMsg = document.getElementById("aiMsg");
+    const imageInput = document.getElementById("imageInput");
+    const descArea = document.getElementById("description");
+
+    aiScanBtn.onclick = async () => {
+      if (!imageInput.files.length) {
+        alert("Please select a file first.");
+        return;
+      }
+      aiScanBtn.disabled = true;
+      aiMsg.innerText = "🌀 Running AI analysis...";
+
+      const fd = new FormData();
+      fd.append("image", imageInput.files[0]);
+
+      try {
+        const res = await fetch("/api/describe_image", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token },
+          body: fd
+        });
+        const data = await res.json();
+        if (res.ok) {
+          descArea.value = data.description;
+          aiMsg.innerText = "✅ Description set! Verify before submitting.";
+        } else {
+          aiMsg.innerText = "❌ AI failed: " + data.detail;
+        }
+      } catch (e) { aiMsg.innerText = "❌ Network error."; }
+      finally { aiScanBtn.disabled = false; }
+    };
+
+    // Submit Report
+    document.getElementById("reportForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("responseMsg");
+      msg.className = "message-box";
+      msg.innerText = "⏳ Synchronizing with registry...";
+      msg.style.display = "block";
+
+      const fd = new FormData(e.target);
+      try {
+        const res = await fetch("/api/report_lost", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token },
+          body: fd
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = "message-box success";
+          msg.innerText = "✅ Item reported successfully.";
+          if (fd.get("generate_qr") && data.item_id) {
+            const qrLink = document.createElement("a");
+            qrLink.href = `/qr/${data.item_id}`;
+            qrLink.innerText = "📄 View Recovery QR";
+            qrLink.style.display = "block";
+            qrLink.style.color = "var(--primary)";
+            qrLink.style.marginTop = "1rem";
+            msg.appendChild(qrLink);
+          }
+          e.target.reset();
+        } else {
+          msg.className = "message-box error";
+          msg.innerText = "❌ Error: " + data.detail;
+        }
+      } catch (err) {
+        msg.className = "message-box error";
+        msg.innerText = "❌ Server unreachable.";
+      }
+    };
+  </script>
+
+</body>
+
+</html>

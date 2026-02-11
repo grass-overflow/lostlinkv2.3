@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upgrade to Premium | LostLink AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/global.css">
+    <style>
+        .premium-container {
+            max-width: 800px;
+            margin: 4rem auto;
+            padding: 0 1.5rem;
+            text-align: center;
+        }
+
+        .pricing-card {
+            background: white;
+            padding: 3rem;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+            border: 2px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pricing-card::before {
+            content: "MOST POPULAR";
+            position: absolute;
+            top: 20px;
+            right: -35px;
+            background: var(--primary);
+            color: white;
+            padding: 5px 40px;
+            transform: rotate(45deg);
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .price {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin: 1.5rem 0;
+            color: var(--dark);
+        }
+
+        .features-list {
+            list-style: none;
+            text-align: left;
+            margin: 2rem 0;
+        }
+
+        .features-list li {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .features-list li::before {
+            content: "✨";
+        }
+
+        .contact-box {
+            background: #f8fafc;
+            padding: 2rem;
+            border-radius: 20px;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">🔍 LostLink AI</div>
+        <nav>
+            <a href="index.html">Home</a>
+        </nav>
+    </header>
+
+    <main class="premium-container">
+        <h1 style="margin-bottom: 1rem;">Unlock Premium AI Features</h1>
+        <p style="color: var(--slate); margin-bottom: 3rem;">Take your recovery success rate to 99% with our advanced AI
+            agent.</p>
+
+        <div class="pricing-card">
+            <h2 style="color: var(--primary);">Premium Recovery</h2>
+            <div class="price">₹199<span
+                    style="font-size: 1rem; color: var(--slate); font-weight: 400;">/one-time</span></div>
+
+            <ul class="features-list">
+                <li><strong>Gemini 1.5 Pro Matching:</strong> Advanced semantic reasoning for complex descriptions.</li>
+                <li><strong>Priority Call Alerts:</strong> Our AI agent calls you immediately when a match is found.
+                </li>
+                <li><strong>Extended Smart Description:</strong> High-res image analysis for tiny details.</li>
+                <li><strong>Infinite Reports:</strong> No daily limits for your security.</li>
+                <li><strong>Physical Tag Support:</strong> High-res printable QR tags for all your belongings.</li>
+            </ul>
+
+            <div class="contact-box">
+                <h3 style="margin-bottom: 1rem;">Ready to Upgrade?</h3>
+                <p>During the project phase, please contact the developer directly for activation:</p>
+                <p style="font-weight: 800; font-size: 1.2rem; margin-top: 10px; color: var(--primary);">
+                    rohith02aug@gmail.com</p>
+                <p style="font-size: 0.8rem; color: var(--slate); margin-top: 5px;">Include your registered account
+                    email in the subject line.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        &copy; 2025 LostLink AI Project • Student Dev Phase
+    </footer>
+
+</body>
+
+</html>

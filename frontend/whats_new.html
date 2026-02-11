@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's New | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <style>
+    .update-list {
+      max-width: 700px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .version-block {
+      background: white;
+      padding: 2rem;
+      border-radius: 20px;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+
+    .version-block h3 {
+      color: var(--primary);
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+
+    .version-block ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .version-block li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .version-block li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    .back-link {
+      display: block;
+      margin-top: 3rem;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🔍 LostLink AI</div>
+    <nav>
+      <a href="index.html">Home</a>
+    </nav>
+  </header>
+
+  <main class="update-list">
+    <h1 style="text-align: center; margin-bottom: 3rem;">Project Updates</h1>
+
+    <div class="version-block">
+      <h3>v2.5 - Frontend & Structure</h3>
+      <ul>
+        <li>Organized code: Moved CSS to external files for better maintenance.</li>
+        <li>New UI: Switched to Outfit font and glassmorphism design.</li>
+        <li>Bug Fix: QR page now correctly fetches item data.</li>
+        <li>Redundancy: Removed extra home.html and unified everything under index.html.</li>
+      </ul>
+    </div>
+
+    <!-- Lifecycle Diagram -->
+    <div class="version-block" style="background: #f8fafc;">
+      <h3 style="text-align: center;">♻️ System Lifecycle</h3>
+      <style>
+        .flowchart {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 15px;
+          margin-top: 20px;
+        }
+
+        .flow-step {
+          background: white;
+          padding: 10px 20px;
+          border: 2px solid var(--primary);
+          border-radius: 12px;
+          width: 80%;
+          text-align: center;
+          font-size: 0.9rem;
+          font-weight: 700;
+          position: relative;
+        }
+
+        .flow-step:not(:last-child)::after {
+          content: "↓";
+          position: absolute;
+          bottom: -15px;
+          left: 50%;
+          transform: translateX(-50%);
+          color: var(--primary);
+          font-size: 1.2rem;
+        }
+
+        .match-diamond {
+          background: var(--primary);
+          color: white;
+          padding: 15px;
+          border-radius: 8px;
+          width: 70%;
+          text-align: center;
+          font-weight: 800;
+        }
+      </style>
+      <div class="flowchart">
+        <div class="flow-step">1. User Reports Lost Item + Image</div>
+        <div class="flow-step">2. AI Agent Scans & Extracts Features</div>
+        <div class="flow-step">3. TF-IDF + Embedding Search in Database</div>
+        <div class="match-diamond">4. AI MATCH FOUND?</div>
+        <div class="flow-step">5. Instant Email & Call Alerts Sent</div>
+        <div class="flow-step">6. Claims Lifecycle: Verification & Recovery</div>
+      </div>
+      <p style="font-size: 0.85rem; margin-top: 20px; color: #64748b;">
+        <strong>Matching Logic:</strong> We use a hybrid approach. Text is matched using 1-3 Gram TF-IDF (word/char),
+        while
+        images are compared using MobileNetV2 feature vectors for similarity scoring. Premium users get Gemini-powered
+        semantic reasoning.
+      </p>
+    </div>
+
+    <div class="version-block">
+      <h3>v2.0 - Core Features</h3>
+      <ul>
+        <li>QR Recovery: Generated QR codes for lost items to help offline finders.</li>
+        <li>Security: Added admin-only login and daily report limits.</li>
+        <li>Admin Panel: Full CRUD for managing reports and user feedback.</li>
+        <li>Matching: Improved TF-IDF with character-level matching for better accuracy.</li>
+      </ul>
+    </div>
+
+    <div class="version-block">
+      <h3>v1.0 - Initial Launch</h3>
+      <ul>
+        <li>Basic Lost & Found reporting.</li>
+        <li>Email notifications for matches.</li>
+        <li>User accounts and profile dashboard.</li>
+      </ul>
+    </div>
+
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+  </main>
+
+  <footer>
+    &copy; 2025 LostLink AI project.
+  </footer>
+
+</body>
+
+</html>

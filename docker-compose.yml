@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  lostlink-api:
+    build: .
+    container_name: lostlink_app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

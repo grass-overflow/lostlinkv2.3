@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+
+<body>
+
+  <a href="index.html" class="back-home">← Home</a>
+
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h1>Sign In</h1>
+        <p>Enter your credentials to continue</p>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" placeholder="name@example.com" required>
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+        <div id="loginMessage" class="message-box"></div>
+      </form>
+
+      <div class="auth-footer">
+        New user? <a href="signup.html">Create an account</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const msg = document.getElementById("loginMessage");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      msg.className = "message-box";
+      msg.innerText = "⏳ Verifying...";
+      msg.style.display = "block";
+
+      const email = form.email.value;
+      const password = form.password.value;
+
+      try {
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem("token", data.access_token);
+          msg.className = "message-box success";
+          msg.innerText = "✅ Success! Redirecting...";
+          setTimeout(() => window.location.href = "index.html", 800);
+        } else {
+          msg.className = "message-box error";
+          msg.innerText = "❌ " + (data.detail || "Access Denied");
+        }
+      } catch (err) {
+        msg.className = "message-box error";
+        msg.innerText = "❌ Connection failed";
+      }
+    };
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">🛠 LostLink AI Control</div>
+    <nav>
+      <a href="index.html">View Site</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </nav>
+  </header>
+
+  <main class="admin-container">
+    <div class="stats-bar">
+      <div class="stat-pills">
+        <h3 id="totalItems">-</h3>
+        <p>Total Items</p>
+      </div>
+      <div class="stat-pills">
+        <h3 id="totalFeedback">-</h3>
+        <p>User Feedbacks</p>
+      </div>
+    </div>
+
+    <div class="admin-table-container">
+      <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">Reports Management</h2>
+      <div style="overflow-x: auto;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Item Name</th>
+              <th>Location</th>
+              <th>Reporter</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reportsTable">
+            <tr>
+              <td colspan="6" style="text-align:center; padding: 4rem;">📡 Fetching records...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "login.html";
+
+    async function fetchData() {
+      try {
+        const itemsRes = await fetch("/api/admin/items", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const fbRes = await fetch("/api/admin/feedbacks", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+
+        if (itemsRes.status === 403) {
+          alert("🔒 Admin access required.");
+          window.location.href = "index.html";
+          return;
+        }
+
+        const items = await itemsRes.json();
+        const feedbacks = await fbRes.json();
+
+        document.getElementById("totalItems").innerText = items.length;
+        document.getElementById("totalFeedback").innerText = feedbacks.length;
+
+        renderItems(items);
+      } catch (e) { console.error(e); }
+    }
+
+    function renderItems(items) {
+      const table = document.getElementById("reportsTable");
+      table.innerHTML = "";
+
+      items.forEach(item => {
+        const row = document.createElement("tr");
+        const typeClass = item.type === "lost" ? "color: #f43f5e" : "color: #10b981";
+
+        row.innerHTML = `
+                <td style="font-weight: 700; ${typeClass}">${item.type.toUpperCase()}</td>
+                <td>${item.item_name}</td>
+                <td>${item.location}</td>
+                <td>${item.email}</td>
+                <td>${item.is_claimed ? "✅ Resolved" : "⌛ Active"}</td>
+                <td class="action-btns">
+                    ${!item.is_claimed ? `<button class="btn-small btn-approve" onclick="approve('${item._id}')">Approve</button>` : ""}
+                    <button class="btn-small btn-remove" onclick="remove('${item._id}')">Delete</button>
+                    <a href="/qr/${item._id}" target="_blank" class="btn-small" style="background:#eee; color:#333; text-decoration:none;">QR</a>
+                </td>
+            `;
+        table.appendChild(row);
+      });
+    }
+
+    async function approve(id) {
+      await fetch(`/api/admin/approve/${id}`, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + token }
+      });
+      fetchData();
+    }
+
+    async function remove(id) {
+      if (!confirm("Permanently delete this item?")) return;
+      await fetch(`/api/admin/delete/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
+      });
+      fetchData();
+    }
+
+    function logout() {
+      localStorage.removeItem("token");
+      window.location.href = "login.html";
+    }
+
+    fetchData();
+  </script>
+
+</body>
+
+</html>

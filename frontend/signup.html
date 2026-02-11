@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+
+<body>
+
+  <a href="index.html" class="back-home">← Home</a>
+
+  <div class="auth-wrapper">
+    <div class="auth-card" style="max-width: 450px;">
+      <div class="auth-header">
+        <h1>Join Us</h1>
+        <p>Create an account to track your belongings</p>
+      </div>
+
+      <form id="signupForm">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" name="name" placeholder="John Doe" required>
+        </div>
+
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" placeholder="name@example.com" required>
+        </div>
+
+        <div class="form-group">
+          <label>Create Password</label>
+          <input type="password" name="password" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
+        <div id="signupMessage" class="message-box"></div>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? <a href="login.html">Sign In</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("signupForm");
+    const msg = document.getElementById("signupMessage");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      msg.className = "message-box";
+      msg.innerText = "⏳ Registering...";
+      msg.style.display = "block";
+
+      const name = form.name.value;
+      const email = form.email.value;
+      const password = form.password.value;
+
+      try {
+        const res = await fetch("/api/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        if (res.ok) {
+          msg.className = "message-box success";
+          msg.innerText = "✅ Account created! Redirecting to login...";
+          setTimeout(() => window.location.href = "login.html", 1200);
+        } else {
+          const data = await res.json();
+          msg.className = "message-box error";
+          msg.innerText = "❌ " + (data.detail || "Registration failed");
+        }
+      } catch (err) {
+        msg.className = "message-box error";
+        msg.innerText = "❌ Network error";
+      }
+    };
+  </script>
+
+</body>
+
+</html>

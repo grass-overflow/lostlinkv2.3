@@ -2,7 +2,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 # Used for authentication
-class User(BaseModel):
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserSignup(BaseModel):
     name: str 
     email: str
     password: str
@@ -19,6 +23,7 @@ class Item(BaseModel):
     priority: Optional[bool] = False
     type: str  # "lost" or "found"
     is_claimed: Optional[bool] = False
+    embedding: Optional[list] = None
 
 # Feedback model
 class Feedback(BaseModel):

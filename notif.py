@@ -3,8 +3,8 @@ import pyttsx3
 from email.message import EmailMessage
 import os
 
-EMAIL_ADDRESS = os.getenv("EMAIL_USER", "your@email.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASS", "yourpassword")
+EMAIL_ADDRESS = os.getenv("EMAIL_USER", "your@email.com").strip().replace('"', '').replace("'", "")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASS", "yourpassword").strip().replace('"', '').replace("'", "")
 
 def send_email(to, subject, body):
     msg = EmailMessage()

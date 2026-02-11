@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/forms.css">
+</head>
+
+<body>
+
+  <a href="index.html"
+    style="position: fixed; top: 2rem; left: 2rem; text-decoration: none; color: var(--primary); font-weight: 700;">←
+    Home</a>
+
+  <div class="form-container">
+    <div class="form-header">
+      <h2>Suggestions</h2>
+      <p>Help us improve this student project with your thoughts.</p>
+    </div>
+
+    <form id="feedbackForm">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label>Your Email (Optional)</label>
+        <input type="email" name="email" placeholder="name@example.com">
+      </div>
+
+      <div class="form-group">
+        <label>Message</label>
+        <textarea name="message" rows="5" placeholder="Share your experience or report a bug..." required></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Thoughts</button>
+      <div id="responseMsg" class="message-box"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("feedbackForm");
+    const responseMsg = document.getElementById("responseMsg");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+
+      responseMsg.className = "message-box";
+      responseMsg.innerText = "⏳ Filing feedback...";
+      responseMsg.style.display = "block";
+
+      try {
+        const res = await fetch("/api/feedback", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          responseMsg.className = "message-box success";
+          responseMsg.innerText = "✅ Thank you! We appreciate your input.";
+          form.reset();
+        } else {
+          const data = await res.json();
+          responseMsg.className = "message-box error";
+          responseMsg.innerText = "❌ " + (data.detail || "Submission failed.");
+        }
+      } catch (err) {
+        responseMsg.className = "message-box error";
+        responseMsg.innerText = "❌ Connection failed.";
+      }
+    };
+  </script>
+
+</body>
+
+</html>
