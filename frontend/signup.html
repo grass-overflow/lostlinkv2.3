@@ -4,47 +4,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account | LostLink AI</title>
+  <title>Join Us | LostLink AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/auth.css">
 </head>
 
 <body>
 
-  <a href="index.html" class="back-home">← Home</a>
+  <div class="auth-page">
+    <a href="index.html" class="back-home">← Back to Home</a>
 
-  <div class="auth-wrapper">
-    <div class="auth-card" style="max-width: 450px;">
-      <div class="auth-header">
-        <h1>Join Us</h1>
-        <p>Create an account to track your belongings</p>
+    <div class="auth-container">
+      <!-- Benefits Sidebar -->
+      <div class="auth-sidebar">
+        <div class="sidebar-content">
+          <h2>Join a Community<br>of Helpers</h2>
+
+          <div class="feature-list">
+            <div class="feature-item">
+              <div class="feature-icon">🛡️</div>
+              <div class="feature-text">
+                <h4>Secure Profile</h4>
+                <p>Private dashboard to track all your items and matches.</p>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon">🔍</div>
+              <div class="feature-text">
+                <h4>Intelligent Matching</h4>
+                <p>Our AI agents work 24/7 to cross-reference reports.</p>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon">💎</div>
+              <div class="feature-text">
+                <h4>Premium Ready</h4>
+                <p>Access voice alerts and high-res tags at any time.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <form id="signupForm">
-        <div class="form-group">
-          <label>Full Name</label>
-          <input type="text" name="name" placeholder="John Doe" required>
+      <!-- Form Side -->
+      <div class="auth-form-side">
+        <div class="auth-form-header">
+          <h1>Create Account</h1>
+          <p>Start protecting your belongings today.</p>
         </div>
 
-        <div class="form-group">
-          <label>Email Address</label>
-          <input type="email" name="email" placeholder="name@example.com" required>
+        <form id="signupForm">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" name="name" placeholder="John Doe" required>
+          </div>
+
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" placeholder="name@example.com" required>
+          </div>
+
+          <div class="form-group">
+            <label>Create Password</label>
+            <input type="password" name="password" placeholder="••••••••" required>
+          </div>
+
+          <button type="submit" class="btn-auth">Create Free Account</button>
+          <div id="signupMessage" class="message-box" style="margin-top: 1.5rem; display: none;"></div>
+        </form>
+
+        <div class="auth-switch">
+          Already have an account? <a href="login.html">Sign In here</a>
         </div>
-
-        <div class="form-group">
-          <label>Create Password</label>
-          <input type="password" name="password" placeholder="••••••••" required>
-        </div>
-
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
-        <div id="signupMessage" class="message-box"></div>
-      </form>
-
-      <div class="auth-footer">
-        Already have an account? <a href="login.html">Sign In</a>
       </div>
     </div>
   </div>
@@ -56,7 +92,7 @@
     form.onsubmit = async (e) => {
       e.preventDefault();
       msg.className = "message-box";
-      msg.innerText = "⏳ Registering...";
+      msg.innerText = "⏳ Creating your profile...";
       msg.style.display = "block";
 
       const name = form.name.value;

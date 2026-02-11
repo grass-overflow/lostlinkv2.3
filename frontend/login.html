@@ -4,42 +4,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login | LostLink AI</title>
+  <title>Sign In | LostLink AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/auth.css">
 </head>
 
 <body>
 
-  <a href="index.html" class="back-home">← Home</a>
+  <div class="auth-page">
+    <a href="index.html" class="back-home">← Back to Home</a>
 
-  <div class="auth-wrapper">
-    <div class="auth-card">
-      <div class="auth-header">
-        <h1>Sign In</h1>
-        <p>Enter your credentials to continue</p>
+    <div class="auth-container">
+      <!-- Benefits Sidebar -->
+      <div class="auth-sidebar">
+        <div class="sidebar-content">
+          <h2>Welcome Back to<br>LostLink AI</h2>
+
+          <div class="feature-list">
+            <div class="feature-item">
+              <div class="feature-icon">✨</div>
+              <div class="feature-text">
+                <h4>AI Recognition</h4>
+                <p>Gemini-powered item analysis for high precision matching.</p>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon">🛰️</div>
+              <div class="feature-text">
+                <h4>Real-time Alerts</h4>
+                <p>Calls and emails the instant your property is identified.</p>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-icon">🏷️</div>
+              <div class="feature-text">
+                <h4>QR Recovery</h4>
+                <p>Unique scannable tags for your physical belongings.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <form id="loginForm">
-        <div class="form-group">
-          <label>Email Address</label>
-          <input type="email" name="email" placeholder="name@example.com" required>
+      <!-- Form Side -->
+      <div class="auth-form-side">
+        <div class="auth-form-header">
+          <h1>Sign In</h1>
+          <p>Welcome back! Please enter your details.</p>
         </div>
 
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="password" placeholder="••••••••" required>
+        <form id="loginForm">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" placeholder="name@example.com" required>
+          </div>
+
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" placeholder="••••••••" required>
+          </div>
+
+          <button type="submit" class="btn-auth">Sign In to Dashboard</button>
+          <div id="loginMessage" class="message-box" style="margin-top: 1.5rem; display: none;"></div>
+        </form>
+
+        <div class="auth-switch">
+          Don't have an account? <a href="signup.html">Join for Free</a>
         </div>
-
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
-        <div id="loginMessage" class="message-box"></div>
-      </form>
-
-      <div class="auth-footer">
-        New user? <a href="signup.html">Create an account</a>
       </div>
     </div>
   </div>
@@ -51,7 +87,7 @@
     form.onsubmit = async (e) => {
       e.preventDefault();
       msg.className = "message-box";
-      msg.innerText = "⏳ Verifying...";
+      msg.innerText = "⏳ Authenticating...";
       msg.style.display = "block";
 
       const email = form.email.value;
@@ -72,7 +108,7 @@
           setTimeout(() => window.location.href = "index.html", 800);
         } else {
           msg.className = "message-box error";
-          msg.innerText = "❌ " + (data.detail || "Access Denied");
+          msg.innerText = "❌ " + (data.detail || "Invalid credentials");
         }
       } catch (err) {
         msg.className = "message-box error";
