@@ -6,6 +6,11 @@ from datetime import datetime, timedelta
 import os
 from models import UserSignup, UserLogin
 from passlib.context import CryptContext
+import bcrypt
+
+# Monkeypatch for passlib + bcrypt 4.0.0+ compatibility
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type("About", (object,), {"__version__": bcrypt.__version__})
 
 router = APIRouter(tags=["auth"])
 

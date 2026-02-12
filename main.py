@@ -25,6 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+def health_check():
+    return {"status": "online", "timestamp": str(__import__("datetime").datetime.now())}
+
 
 os.makedirs("uploads", exist_ok=True)
 
