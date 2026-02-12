@@ -60,13 +60,13 @@ async def report_found(
     result = items_col.insert_one(item)
     item_id = str(result.inserted_id)
 
-    # 🚀 Run Matching Logic
+    # Run Matching Logic
     try:
         if priority:
-            print("💎 Premium Mode (Found): Matching with Gemini...")
+            print("Premium Mode (Found): Matching with Gemini...")
             match_with_gemini(item)
         else:
-            print("⚙️ Standard Mode (Found): Matching with Embeddings + TF-IDF...")
+            print("Standard Mode (Found): Matching with Embeddings + TF-IDF...")
             match_with_embeddings(item)
             match_with_tfidf(item)
     except Exception as e:
@@ -122,13 +122,13 @@ async def report_lost(
     result = items_col.insert_one(item)
     item_id = str(result.inserted_id)
 
-    # 🚀 Run Matching Logic
+    # Run Matching Logic
     try:
         if priority:
-            print("💎 Premium Mode: Matching with Gemini...")
+            print("Premium Mode: Matching with Gemini...")
             match_with_gemini(item)
         else:
-            print("⚙️ Standard Mode: Matching with Embeddings + TF-IDF...")
+            print("Standard Mode: Matching with Embeddings + TF-IDF...")
             # Run both for better coverage
             match_with_embeddings(item)
             match_with_tfidf(item)
@@ -199,7 +199,7 @@ def can_submit(user: dict = Depends(get_current_user)):
     # Check if user is admin or has a limit bypass
     db_user = users_col.find_one({"email": email})
     if db_user and (db_user.get("is_admin") or db_user.get("bypass_limit")):
-        print(f"⚡ Bypass: Limit suppressed for test/admin account: {email}")
+        print(f"Bypass: Limit suppressed for test/admin account: {email}")
         return {"can_submit": True}
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -209,7 +209,7 @@ def can_submit(user: dict = Depends(get_current_user)):
     })
     
     if count >= 100:  # Increased from 3 to 100 for testing
-        return {"can_submit": False, "message": "❌ You’ve reached today’s limit (100 reports). Try again tomorrow."}
+        return {"can_submit": False, "message": "You’ve reached today’s limit (100 reports). Try again tomorrow."}
     return {"can_submit": True}
 
 @router.get("/items/{item_id}")
@@ -267,13 +267,13 @@ async def claim_item(
             raise HTTPException(status_code=404, detail="Item not found.")
 
         found_user_email = item.get("contact_info", "admin@lostlink.ai")
-        subject = f"[LostLink AI] Claim Request for: {item.get('item_name','Item')}"
+        subject = f"[LostLink] Claim Request for: {item.get('item_name','Item')}"
         message = f"""
-        🔎 Someone has claimed the item you reported as FOUND!
+        Someone has claimed the item you reported as FOUND!
 
-        🧑 Claimer Name: {name}
-        📞 Contact: {contact}
-        📄 Proof: {proof or "Not provided"}
+        Claimer Name: {name}
+        Contact: {contact}
+        Proof: {proof or "Not provided"}
 
         Please reach out to verify.
         """
@@ -303,11 +303,11 @@ async def describe_image(
             f.write(await image.read())
         
         if is_premium:
-            print(f"💎 Premium User ({user['email']}): Using Gemini...")
+            print(f"Premium User ({user['email']}): Using Gemini...")
             description = generate_image_description(temp_path)
             mode = "premium"
         else:
-            print(f"⚙️ Standard User ({user['email']}): Using MobileNet...")
+            print(f"Standard User ({user['email']}): Using MobileNet...")
             description = generate_local_description(temp_path)
             mode = "standard"
             

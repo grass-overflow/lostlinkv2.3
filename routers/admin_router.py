@@ -1,7 +1,8 @@
 import os
 from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
-from database import items_col, feedback_col, users_col
+from database import items_col, feedback_col, users_col, matches_col
+
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -13,7 +14,7 @@ if ADMIN_EMAIL.startswith('"') and ADMIN_EMAIL.endswith('"'):
 def admin_only(user: dict = Depends(get_current_user)):
     user_email = user.get("email", "").strip().lower()
     if user_email != ADMIN_EMAIL:
-        print(f"🚫 Access Denied for: {user_email} (Expected: {ADMIN_EMAIL})")
+        print(f"Access Denied for: {user_email} (Expected: {ADMIN_EMAIL})")
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -43,9 +44,27 @@ def get_feedbacks(user: dict = Depends(admin_only)):
         })
     return feedbacks
 
+@router.get("/matches")
+def get_matches(user: dict = Depends(admin_only)):
+    matches = []
+    for m in matches_col.find().sort("timestamp", -1):
+        item_a = items_col.find_one({"_id": ObjectId(m["item_a_id"])})
+        item_b = items_col.find_one({"_id": ObjectId(m["item_b_id"])}) if m["item_b_id"] != "new" else None
+        
+        matches.append({
+            "_id": str(m["_id"]),
+            "item_a": sanitize_item(item_a) if item_a else {"item_name": "Deleted Item"},
+            "item_b": sanitize_item(item_b) if item_b else {"item_name": "New Item (just reported)"},
+            "match_type": m["match_type"],
+            "score": m["score"],
+            "reason": m["reason"],
+            "timestamp": m["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if m.get("timestamp") else "Unknown"
+        })
+    return matches
+
 @router.get("/users")
 def get_all_users(user: dict = Depends(admin_only)):
-    users = list(users_col.find({}, {"password": 0})) # Don't send passwords
+    users = list(users_col.find({}, {"password": 0})) 
     return [sanitize_item(u) for u in users]
 
 @router.post("/toggle_premium/{user_id}")
@@ -90,7 +109,6 @@ def delete_item(item_id: str, user: dict = Depends(admin_only)):
 @router.post("/update/{item_id}")
 def update_item(item_id: str, updates: dict, user: dict = Depends(admin_only)):
     try:
-        # Prevent manual ID update
         if "_id" in updates: del updates["_id"]
         result = items_col.update_one(
             {"_id": ObjectId(item_id)},

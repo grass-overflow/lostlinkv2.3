@@ -60,7 +60,7 @@
 <body>
 
   <header>
-    <div class="logo">🛠 LostLink AI Control</div>
+    <div class="logo">LostLink Admin</div>
     <nav>
       <a href="index.html">View Site</a>
       <a href="#" onclick="logout()">Logout</a>
@@ -85,6 +85,7 @@
 
     <div class="admin-nav">
       <button onclick="showSection('reports')" id="btn-reports" class="active">Reports</button>
+      <button onclick="showSection('matches')" id="btn-matches">Matches</button>
       <button onclick="showSection('users')" id="btn-users">Users</button>
       <button onclick="showSection('feedback')" id="btn-feedback">Feedback</button>
     </div>
@@ -107,7 +108,33 @@
             </thead>
             <tbody id="reportsTable">
               <tr>
-                <td colspan="6" style="text-align:center; padding: 4rem;">📡 Fetching records...</td>
+                <td colspan="6" style="text-align:center; padding: 4rem;">Fetching records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Matches Section -->
+    <div id="section-matches" class="section">
+      <div class="admin-table-container">
+        <h2 style="padding: 1.5rem; border-bottom: 2px solid #eee;">AI Match Tracking</h2>
+        <div style="overflow-x: auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Item Detected</th>
+                <th>Matched With</th>
+                <th>Logic Type</th>
+                <th>Score</th>
+                <th>Reasoning</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="matchesTable">
+              <tr>
+                <td colspan="6" style="text-align:center; padding: 4rem;">Loading matches...</td>
               </tr>
             </tbody>
           </table>
@@ -131,7 +158,7 @@
             </thead>
             <tbody id="usersTable">
               <tr>
-                <td colspan="4" style="text-align:center; padding: 4rem;">📡 Loading users...</td>
+                <td colspan="4" style="text-align:center; padding: 4rem;">Loading users...</td>
               </tr>
             </tbody>
           </table>
@@ -155,7 +182,7 @@
             </thead>
             <tbody id="feedbackTable">
               <tr>
-                <td colspan="4" style="text-align:center; padding: 4rem;">📡 Loading feedback...</td>
+                <td colspan="4" style="text-align:center; padding: 4rem;">Loading feedback...</td>
               </tr>
             </tbody>
           </table>
@@ -178,14 +205,15 @@
 
     async function fetchData() {
       try {
-        const [items, users, feedbacks] = await Promise.all([
+        const [items, users, feedbacks, matches] = await Promise.all([
           fetch("/api/admin/items", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json()),
           fetch("/api/admin/users", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json()),
-          fetch("/api/admin/feedbacks", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json())
+          fetch("/api/admin/feedbacks", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json()),
+          fetch("/api/admin/matches", { headers: { "Authorization": "Bearer " + token } }).then(r => r.json())
         ]);
 
         if (items.detail === "Admin access required") {
-          alert("🔒 Admin access required.");
+          alert("Admin access required.");
           window.location.href = "index.html";
           return;
         }
@@ -197,6 +225,7 @@
         renderItems(items);
         renderUsers(users);
         renderFeedback(feedbacks);
+        renderMatches(matches);
       } catch (e) { console.error(e); }
     }
 
@@ -211,7 +240,7 @@
                 <td>${item.item_name}</td>
                 <td>${item.location}</td>
                 <td>${item.email || '-'}</td>
-                <td>${item.is_claimed ? "✅ Resolved" : "⌛ Active"}</td>
+                <td>${item.is_claimed ? "Resolved" : "Active"}</td>
                 <td class="action-btns">
                     ${!item.is_claimed ? `<button class="btn-small btn-approve" onclick="approve('${item._id}')">Approve</button>` : ""}
                     <button class="btn-small btn-remove" onclick="removeItem('${item._id}')">Delete</button>
@@ -230,12 +259,34 @@
         row.innerHTML = `
                 <td style="font-weight:700;">${user.name}</td>
                 <td>${user.email}</td>
-                <td>${user.is_premium ? '<span class="badge-premium">💎 Premium</span>' : '<span style="color:var(--slate); font-size:0.8rem;">Standard</span>'}</td>
+                <td>${user.is_premium ? '<span class="badge-premium">Premium</span>' : '<span style="color:var(--slate); font-size:0.8rem;">Standard</span>'}</td>
                 <td>
                     <button class="btn-small" style="background:var(--primary); color:white;" onclick="togglePremium('${user._id}')">
                         ${user.is_premium ? 'Revoke Premium' : 'Mark Premium'}
                     </button>
                 </td>
+            `;
+        table.appendChild(row);
+      });
+    }
+
+    function renderMatches(matches) {
+      const table = document.getElementById("matchesTable");
+      table.innerHTML = "";
+      if (!matches || matches.length === 0) {
+        table.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">No AI matches recorded yet.</td></tr>';
+        return;
+      }
+      matches.forEach(m => {
+        const row = document.createElement("tr");
+        const scoreColor = m.score > 0.9 ? "#10b981" : (m.score > 0.8 ? "#3b82f6" : "#f59e0b");
+        row.innerHTML = `
+                <td style="font-weight:700;">${m.item_a.item_name}</td>
+                <td style="font-weight:700;">${m.item_b.item_name}</td>
+                <td><span style="font-size:0.8rem; background:#f1f5f9; padding:4px 8px; border-radius:6px; font-weight:600;">${m.match_type}</span></td>
+                <td style="font-weight:800; color:${scoreColor}">${(m.score * 100).toFixed(1)}%</td>
+                <td style="font-size:0.85rem; color:var(--slate); max-width:250px;">${m.reason}</td>
+                <td style="font-size:0.8rem; opacity:0.7;">${m.timestamp}</td>
             `;
         table.appendChild(row);
       });
