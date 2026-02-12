@@ -17,10 +17,12 @@ ALGORITHM = "HS256"
 TOKEN_EXPIRE_MIN = 60 * 24
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    # Bcrypt has a 72-character limit. Truncate to avoid ValueError in newer bcrypt versions.
+    return pwd_context.verify(plain_password[:72], hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    # Bcrypt has a 72-character limit. Truncate to avoid ValueError in newer bcrypt versions.
+    return pwd_context.hash(password[:72])
 
 security = HTTPBearer()
 

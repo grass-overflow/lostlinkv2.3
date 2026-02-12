@@ -10,51 +10,289 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/global.css">
   <style>
-    .update-list {
-      max-width: 700px;
-      margin: 4rem auto;
-      padding: 0 1.5rem;
+    :root {
+      --card-bg: rgba(255, 255, 255, 0.7);
+      --card-border: rgba(255, 255, 255, 0.4);
     }
 
-    .version-block {
-      background: white;
+    body {
+      background: radial-gradient(circle at top left, #f0f4ff 0%, #e6e9f0 100%);
+      overflow-x: hidden;
+    }
+
+    .hero-section {
+      text-align: center;
+      padding: 6rem 1.5rem 4rem;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      margin-top: -80px;
+      /* Offset for header if it's there */
+      padding-top: 140px;
+      clip-path: polygon(0 0, 100% 0, 100% 85%, 0% 100%);
+      margin-bottom: 4rem;
+    }
+
+    .hero-section h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      margin-bottom: 1rem;
+      animation: fadeInDown 0.8s ease-out;
+    }
+
+    .hero-section p {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      max-width: 600px;
+      margin: 0 auto;
+      animation: fadeIn 1.2s ease-out;
+    }
+
+    .update-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 1.5rem 6rem;
+      position: relative;
+    }
+
+    .timeline-line {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 6rem;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--primary), transparent);
+      transform: translateX(-50%);
+      opacity: 0.2;
+    }
+
+    .version-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 2.5rem;
+      margin-bottom: 3rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 0.6s ease-out both;
+    }
+
+    .version-card:hover {
+      transform: translateY(-8px) scale(1.01);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1);
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .version-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      background: var(--primary);
+    }
+
+    .version-tag {
+      display: inline-block;
+      padding: 0.5rem 1.2rem;
+      background: var(--primary);
+      color: white;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 71, 171, 0.2);
+    }
+
+    .version-card h3 {
+      font-size: 1.8rem;
+      margin-bottom: 1.5rem;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .update-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .update-item {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 1.2rem;
+      align-items: flex-start;
+    }
+
+    .update-icon {
+      width: 24px;
+      height: 24px;
+      background: #e0e7ff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .update-text {
+      font-size: 1rem;
+      color: #4a5568;
+    }
+
+    .lifecycle-container {
+      background: #0f172a;
+      color: white;
+      border-radius: 32px;
+      padding: 3rem;
+      margin-top: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lifecycle-container::after {
+      content: "";
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: var(--primary);
+      filter: blur(150px);
+      opacity: 0.2;
+      top: -150px;
+      right: -150px;
+    }
+
+    .flowchart {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 2.5rem;
+    }
+
+    .flow-step {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1.5rem;
+      border-radius: 16px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .flow-step:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-5px);
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      margin: 0 auto 1rem;
+      font-size: 0.9rem;
+    }
+
+    .match-diamond {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
       padding: 2rem;
       border-radius: 20px;
-      margin-bottom: 2rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      border: 1px solid #e2e8f0;
-    }
-
-    .version-block h3 {
-      color: var(--primary);
-      margin-bottom: 1rem;
-      font-size: 1.2rem;
-    }
-
-    .version-block ul {
-      list-style: none;
-      padding-left: 0;
-    }
-
-    .version-block li {
-      position: relative;
-      padding-left: 1.5rem;
-      margin-bottom: 0.5rem;
-      font-size: 0.95rem;
-    }
-
-    .version-block li::before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: var(--primary);
-      font-weight: bold;
-    }
-
-    .back-link {
-      display: block;
-      margin-top: 3rem;
       text-align: center;
+      font-weight: 800;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin: 1rem 0;
+      box-shadow: 0 10px 30px rgba(0, 71, 171, 0.3);
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4rem;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+      transition: all 0.3s ease;
+    }
+
+    .back-btn:hover {
+      gap: 15px;
+      opacity: 0.8;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    /* Staggered animation delay */
+    .card-1 {
+      animation-delay: 0.2s;
+    }
+
+    .card-2 {
+      animation-delay: 0.4s;
+    }
+
+    .card-3 {
+      animation-delay: 0.6s;
+    }
+
+    @media (max-width: 768px) {
+      .hero-section h1 {
+        font-size: 2.5rem;
+      }
+
+      .timeline-line {
+        display: none;
+      }
+
+      .flowchart {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -68,103 +306,118 @@
     </nav>
   </header>
 
-  <main class="update-list">
-    <h1 style="text-align: center; margin-bottom: 3rem;">Project Updates</h1>
+  <section class="hero-section">
+    <h1>What's New</h1>
+    <p>Discover the latest features, improvements, and engine updates to LostLink AI.</p>
+  </section>
 
-    <div class="version-block">
-      <h3>v2.5 - Frontend & Structure</h3>
-      <ul>
-        <li>Organized code: Moved CSS to external files for better maintenance.</li>
-        <li>New UI: Switched to Outfit font and glassmorphism design.</li>
-        <li>Bug Fix: QR page now correctly fetches item data.</li>
-        <li>Redundancy: Removed extra home.html and unified everything under index.html.</li>
-      </ul>
-    </div>
+  <main class="update-container">
+    <div class="timeline-line"></div>
 
-    <!-- Lifecycle Diagram -->
-    <div class="version-block" style="background: #f8fafc;">
-      <h3 style="text-align: center;">♻️ System Lifecycle</h3>
-      <style>
-        .flowchart {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 15px;
-          margin-top: 20px;
-        }
-
-        .flow-step {
-          background: white;
-          padding: 10px 20px;
-          border: 2px solid var(--primary);
-          border-radius: 12px;
-          width: 80%;
-          text-align: center;
-          font-size: 0.9rem;
-          font-weight: 700;
-          position: relative;
-        }
-
-        .flow-step:not(:last-child)::after {
-          content: "↓";
-          position: absolute;
-          bottom: -15px;
-          left: 50%;
-          transform: translateX(-50%);
-          color: var(--primary);
-          font-size: 1.2rem;
-        }
-
-        .match-diamond {
-          background: var(--primary);
-          color: white;
-          padding: 15px;
-          border-radius: 8px;
-          width: 70%;
-          text-align: center;
-          font-weight: 800;
-        }
-      </style>
-      <div class="flowchart">
-        <div class="flow-step">1. User Reports Lost Item + Image</div>
-        <div class="flow-step">2. AI Agent Scans & Extracts Features</div>
-        <div class="flow-step">3. TF-IDF + Embedding Search in Database</div>
-        <div class="match-diamond">4. AI MATCH FOUND?</div>
-        <div class="flow-step">5. Instant Email & Call Alerts Sent</div>
-        <div class="flow-step">6. Claims Lifecycle: Verification & Recovery</div>
+    <div class="version-card card-1">
+      <div class="version-tag">LATEST UPDATE</div>
+      <h3>v2.5 - The Aesthetic & Structural Overhaul</h3>
+      <div class="update-list">
+        <div class="update-item">
+          <div class="update-icon">🎨</div>
+          <div class="update-text"><strong>Modern UI Engine:</strong> Switched to Outfit typography and glassmorphism
+            styling for a premium feel.</div>
+        </div>
+        <div class="update-item">
+          <div class="update-icon">📂</div>
+          <div class="update-text"><strong>Code Foundation:</strong> Decoupled CSS into a unified global design system
+            for faster loading.</div>
+        </div>
+        <div class="update-item">
+          <div class="update-icon">🐛</div>
+          <div class="update-text"><strong>Reliability Fix:</strong> QR Code engine now correctly hydrates item data
+            from the cloud.</div>
+        </div>
+        <div class="update-item">
+          <div class="update-icon">⚡</div>
+          <div class="update-text"><strong>Consolidated Core:</strong> Unified all entry points into index.html for a
+            single-page application experience.</div>
+        </div>
       </div>
-      <p style="font-size: 0.85rem; margin-top: 20px; color: #64748b;">
-        <strong>Matching Logic:</strong> We use a hybrid approach. Text is matched using 1-3 Gram TF-IDF (word/char),
-        while
-        images are compared using MobileNetV2 feature vectors for similarity scoring. Premium users get Gemini-powered
-        semantic reasoning.
-      </p>
     </div>
 
-    <div class="version-block">
-      <h3>v2.0 - Core Features</h3>
-      <ul>
-        <li>QR Recovery: Generated QR codes for lost items to help offline finders.</li>
-        <li>Security: Added admin-only login and daily report limits.</li>
-        <li>Admin Panel: Full CRUD for managing reports and user feedback.</li>
-        <li>Matching: Improved TF-IDF with character-level matching for better accuracy.</li>
-      </ul>
+    <!-- Lifecycle Card -->
+    <div class="lifecycle-container card-2">
+      <h2 style="text-align: center; margin-bottom: 0.5rem;">♻️ Intelligent matching lifecycle</h2>
+      <p style="text-align: center; opacity: 0.7; font-size: 0.9rem;">How our cross-model engine connects lost items to
+        finders.</p>
+
+      <div class="flowchart">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <p>User Reports Item & Uploads Image</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <p>AI Scans & Extracts Visual Features</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <p>Hybrid Search (TF-IDF + Embeddings)</p>
+        </div>
+        <div class="match-diamond">AI MATCH ENGINE</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <p>Instant Email & Voice Alerts Sent</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">5</div>
+          <p>Secure Verification & Handover</p>
+        </div>
+      </div>
+
+      <div
+        style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 16px; border-left: 4px solid var(--secondary);">
+        <p style="font-size: 0.9rem; color: #cbd5e1;">
+          <strong>Matching Logic:</strong> Our proprietary engine combines 1-3 Gram TF-IDF for text precision with
+          MobileNetV2 feature vectors for visual similarity.
+          <span style="color: var(--secondary);">Gemini 1.5 Flash</span> provides semantic reasoning for high-priority
+          matches.
+        </p>
+      </div>
     </div>
 
-    <div class="version-block">
-      <h3>v1.0 - Initial Launch</h3>
-      <ul>
-        <li>Basic Lost & Found reporting.</li>
-        <li>Email notifications for matches.</li>
-        <li>User accounts and profile dashboard.</li>
-      </ul>
+    <div class="version-card card-3">
+      <h3>v2.0 - Security & Recovery</h3>
+      <div class="update-list">
+        <div class="update-item">
+          <div class="update-icon">🔗</div>
+          <div class="update-text"><strong>QR Recovery System:</strong> Printed QR IDs now bridge the gap between
+            offline finders and online owners.</div>
+        </div>
+        <div class="update-item">
+          <div class="update-icon">🛡️</div>
+          <div class="update-text"><strong>Enhanced Security:</strong> Implemented admin-tier authentication and
+            anti-spam report throttling.</div>
+        </div>
+        <div class="update-item">
+          <div class="update-icon">📊</div>
+          <div class="update-text"><strong>Admin Core:</strong> New control center for managing reports, feedback, and
+            system health.</div>
+        </div>
+      </div>
     </div>
 
-    <a href="index.html" class="back-link">← Back to Dashboard</a>
+    <div style="text-align: center;">
+      <a href="index.html" class="back-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Return to Dashboard
+      </a>
+    </div>
   </main>
 
   <footer>
-    &copy; 2025 LostLink AI project.
+    <p>&copy; 2025 LostLink AI Intelligence Systems.</p>
+    <p class="credits">Built with Advanced Agentic Coding</p>
   </footer>
 
 </body>
