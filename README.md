@@ -1,4 +1,4 @@
-# LostLink AI  
+<img width="1920" height="1080" alt="Home" src="https://github.com/user-attachments/assets/f330f655-6752-4d76-98f5-bba334885243" /># LostLink AI  
 ## Robust Multi-Modal Matching Infrastructure for Intelligent Asset Recovery
 
 LostLink AI is a recovery system designed to solve the Lost & Found problem through a deterministic, research-driven matching pipeline.
@@ -340,6 +340,5 @@ This ensures:
 ---
 
 LostLink AI is a scalable, explainable, and performance-optimized recovery infrastructure engineered with production intent.
-```
 
-![Uploading Home.png…]()
+<img width="1920" height="1080" alt="Home" src="https://github.com/user-attachments/assets/8cbc8cf2-75ab-4de1-afbb-0e8a3c591a04" />
