@@ -337,16 +337,9 @@ This ensures:
 - Image compression optimization  
 - Security-first authentication systems  
 - Containerized cloud deployment  
-
----
-
-## Contact
-
-Rohith  
-rohith02aug@gmail.com  
-
 ---
 
 LostLink AI is a scalable, explainable, and performance-optimized recovery infrastructure engineered with production intent.
 ```
 
+![Uploading Home.png…]()
