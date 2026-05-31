@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, Q
 from typing import Optional
 import os
 import uuid
+from io import BytesIO
+from PIL import Image
 from bson import ObjectId
 from bson.errors import InvalidId
 from datetime import datetime
@@ -9,10 +11,25 @@ from database import items_col
 from ai_matcher import (
     match_with_gemini, match_with_tfidf, match_with_embeddings,
     generate_qr_for_item, generate_image_description, generate_local_description,
-    get_image_embedding
+    get_image_embedding, run_ensemble_matching, query_rag_agent
 )
 from routers.auth import get_current_user
 from models import Item
+
+def compress_and_save_image(upload_file, target_path, max_size=(800, 800), quality=85):
+    try:
+        content = upload_file.file.read()
+        upload_file.file.seek(0)
+        
+        img = Image.open(BytesIO(content))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        img.save(target_path, "JPEG", quality=quality, optimize=True)
+        return True
+    except Exception as e:
+        print(f"Error compressing image: {e}")
+        return False
 
 router = APIRouter(tags=["items"])
 
@@ -34,9 +51,12 @@ async def report_found(
     filename = f"{uuid.uuid4()}_{image.filename.replace(' ', '_')}"
     file_path = os.path.join(UPLOAD_DIR, filename)
 
-    with open(file_path, "wb") as f:
-        content = await image.read()
-        f.write(content)
+    # Compress and save image, fall back to raw bytes if failure
+    if not compress_and_save_image(image, file_path):
+        image.file.seek(0)
+        with open(file_path, "wb") as f:
+            content = await image.read()
+            f.write(content)
 
     image_url = f"/uploads/{filename}"
 
@@ -60,15 +80,22 @@ async def report_found(
     result = items_col.insert_one(item)
     item_id = str(result.inserted_id)
 
+    # Insert into local LSH Vector Database for sub-linear search
+    from vector_db import vector_db
+    vector_db.insert_item(
+        item_id=item_id,
+        image_vector=item["embedding"],
+        text_string=f"{item_name} {description} {location}".lower()
+    )
+
     # Run Matching Logic
     try:
         if priority:
             print("Premium Mode (Found): Matching with Gemini...")
             match_with_gemini(item)
         else:
-            print("Standard Mode (Found): Matching with Embeddings + TF-IDF...")
-            match_with_embeddings(item)
-            match_with_tfidf(item)
+            print("Standard Mode (Found): Matching with Multi-Modal Ensemble...")
+            run_ensemble_matching(item)
     except Exception as e:
         print("Matching failed for found item:", e)
 
@@ -94,9 +121,12 @@ async def report_lost(
     filename = f"{uuid.uuid4()}_{image.filename.replace(' ', '_')}"
     file_path = os.path.join(UPLOAD_DIR, filename)
 
-    with open(file_path, "wb") as f:
-        content = await image.read()
-        f.write(content)
+    # Compress and save image, fall back to raw bytes if failure
+    if not compress_and_save_image(image, file_path):
+        image.file.seek(0)
+        with open(file_path, "wb") as f:
+            content = await image.read()
+            f.write(content)
 
     image_url = f"/uploads/{filename}"
 
@@ -122,16 +152,22 @@ async def report_lost(
     result = items_col.insert_one(item)
     item_id = str(result.inserted_id)
 
+    # Insert into local LSH Vector Database for sub-linear search
+    from vector_db import vector_db
+    vector_db.insert_item(
+        item_id=item_id,
+        image_vector=item["embedding"],
+        text_string=f"{item_name} {description} {location}".lower()
+    )
+
     # Run Matching Logic
     try:
         if priority:
             print("Premium Mode: Matching with Gemini...")
             match_with_gemini(item)
         else:
-            print("Standard Mode: Matching with Embeddings + TF-IDF...")
-            # Run both for better coverage
-            match_with_embeddings(item)
-            match_with_tfidf(item)
+            print("Standard Mode: Matching with Multi-Modal Ensemble...")
+            run_ensemble_matching(item)
     except Exception as e:
         print("Matching failed:", e)
 
@@ -266,7 +302,7 @@ async def claim_item(
         if not item:
             raise HTTPException(status_code=404, detail="Item not found.")
 
-        found_user_email = item.get("contact_info", "admin@lostlink.ai")
+        found_user_email = item.get("email") or item.get("contact_info", "admin@lostlink.ai")
         subject = f"[LostLink] Claim Request for: {item.get('item_name','Item')}"
         message = f"""
         Someone has claimed the item you reported as FOUND!
@@ -317,3 +353,10 @@ async def describe_image(
         return {"description": description, "mode": mode}
     finally:
         if os.path.exists(temp_path): os.remove(temp_path)
+
+@router.post("/chat")
+async def chat_rag(message: str = Form(...)):
+    if not message.strip():
+        raise HTTPException(status_code=400, detail="Empty query message.")
+    response_text = query_rag_agent(message)
+    return {"response": response_text}

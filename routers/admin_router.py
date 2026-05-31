@@ -101,6 +101,8 @@ def delete_item(item_id: str, user: dict = Depends(admin_only)):
     try:
         result = items_col.delete_one({"_id": ObjectId(item_id)})
         if result.deleted_count == 1:
+            from vector_db import vector_db
+            vector_db.remove_item(item_id)
             return {"msg": "Item deleted successfully"}
         raise HTTPException(status_code=404, detail="Item not found")
     except Exception:

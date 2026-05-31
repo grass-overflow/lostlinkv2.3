@@ -1,11 +1,22 @@
 version: '3.8'
 
 services:
+  mongo:
+    image: mongo:latest
+    container_name: lostlink-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
   lostlink-api:
     build: .
     container_name: lostlink_app
     ports:
       - "8000:8000"
+    depends_on:
+      - mongo
     env_file:
       - .env
     volumes:
@@ -16,3 +27,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  mongo_data:

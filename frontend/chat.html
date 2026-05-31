@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Copilot | LostLink AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/global.css">
+  <style>
+    .chat-container {
+      max-width: 850px;
+      margin: 2rem auto;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 70vh;
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #1e3a8a 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chat-header h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .chat-header p {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .message {
+      max-width: 75%;
+      padding: 1rem 1.25rem;
+      border-radius: 20px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .message.bot {
+      background: white;
+      color: var(--text);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+      border: 1px solid #e2e8f0;
+    }
+
+    .message.user {
+      background: var(--primary);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 71, 171, 0.2);
+    }
+
+    .chat-input-area {
+      padding: 1.5rem 2rem;
+      background: white;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 12px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 1rem 1.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 16px;
+      font-size: 1rem;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    .chat-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(0, 71, 171, 0.1);
+    }
+
+    .btn-send {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0 1.75rem;
+      border-radius: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-send:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 71, 171, 0.3);
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 0.5rem 1rem;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--slate);
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+
+    .dot:nth-child(1) { animation-delay: -0.32s; }
+    .dot:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1.0); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">LostLink AI</div>
+    <nav id="navbar">
+      <a href="index.html">Home</a>
+      <a href="browser.html">Browse Items</a>
+      <a href="report_lost.html">Report Lost</a>
+      <a href="report_found.html">Report Found</a>
+      <a href="chat.html" style="color: var(--secondary);">RAG Chat</a>
+      <a href="dashboard.html">My Dashboard</a>
+    </nav>
+  </header>
+
+  <main style="padding: 0 5%;">
+    <div class="chat-container">
+      <div class="chat-header">
+        <div style="font-size: 2.2rem; line-height: 1;">💬</div>
+        <div>
+          <h2>LostLink RAG Copilot</h2>
+          <p>Local vector search retrieval combined with LLM reasoning. Ask questions about lost items on campus.</p>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="message bot">
+          Hello! I am your RAG Copilot. Tell me what you lost, or describe a found item, and I will search our local vector database to find a match.
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <input type="text" id="chatInput" class="chat-input" placeholder="Type your search query (e.g. 'Did anyone find keys near Central Library?')..." onkeydown="if(event.key === 'Enter') sendMessage()">
+        <button onclick="sendMessage()" class="btn-send">
+          Send
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const messagesContainer = document.getElementById("chatMessages");
+    const inputElement = document.getElementById("chatInput");
+
+    // Add navigation login/logout link
+    const token = localStorage.getItem("token");
+    const nav = document.getElementById("navbar");
+    if (token) {
+      const logoutLink = document.createElement("a");
+      logoutLink.href = "#";
+      logoutLink.textContent = "Logout";
+      logoutLink.onclick = () => {
+        localStorage.removeItem("token");
+        window.location.reload();
+      };
+      nav.appendChild(logoutLink);
+    } else {
+      const loginLink = document.createElement("a");
+      loginLink.href = "login.html";
+      loginLink.textContent = "Login";
+      nav.appendChild(loginLink);
+    }
+
+    function parseMarkdown(text) {
+      // Escape HTML
+      let html = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      // Replace bold text: **text**
+      html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+      // Replace backticks (code): `text`
+      html = html.replace(/`(.*?)`/g, "<code style='background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.9em;'>$1</code>");
+
+      // Replace newlines with break tags
+      html = html.replace(/\n/g, "<br>");
+
+      // Clean list bullet items (e.g. - item)
+      html = html.replace(/^- (.*$)/gim, '<div style="margin-left: 16px; margin-top: 4px; display: list-item; list-style-type: disc;">$1</div>');
+      html = html.replace(/• (.*$)/gim, '<div style="margin-left: 16px; margin-top: 4px; display: list-item; list-style-type: disc;">$1</div>');
+
+      return html;
+    }
+
+    async function sendMessage() {
+      const text = inputElement.value.trim();
+      if (!text) return;
+
+      // Append user message
+      appendMessage(text, "user");
+      inputElement.value = "";
+
+      // Append typing indicator
+      const typingDiv = document.createElement("div");
+      typingDiv.className = "message bot";
+      typingDiv.id = "typingIndicator";
+      typingDiv.innerHTML = `
+        <div class="typing-indicator">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+      `;
+      messagesContainer.appendChild(typingDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      try {
+        const formData = new FormData();
+        formData.append("message", text);
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          body: formData
+        });
+        
+        const data = await res.json();
+        
+        // Remove typing indicator
+        const indicator = document.getElementById("typingIndicator");
+        if (indicator) indicator.remove();
+
+        if (res.ok) {
+          appendMessage(data.response, "bot");
+        } else {
+          appendMessage("Sorry, I could not query the matching logs at this time.", "bot");
+        }
+      } catch (e) {
+        const indicator = document.getElementById("typingIndicator");
+        if (indicator) indicator.remove();
+        appendMessage("Network failure. Please verify the backend service is running.", "bot");
+      }
+    }
+
+    function appendMessage(text, sender) {
+      const div = document.createElement("div");
+      div.className = `message ${sender}`;
+      if (sender === "bot") {
+        div.innerHTML = parseMarkdown(text);
+      } else {
+        div.innerText = text;
+      }
+      messagesContainer.appendChild(div);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  </script>
+
+</body>
+
+</html>

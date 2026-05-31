@@ -25,6 +25,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+def startup_event():
+    import os
+    if not os.path.exists("vector_db.pkl"):
+        print("test msg : Initializing local vector database index from MongoDB...")
+        from vector_db import vector_db
+        from database import items_col
+        count = 0
+        for item in items_col.find({"is_claimed": False}):
+            vector_db.insert_item(
+                item_id=str(item["_id"]),
+                image_vector=item.get("embedding"),
+                text_string=f"{item.get('item_name', '')} {item.get('description', '')} {item.get('location', '')}".lower()
+            )
+            count += 1
+        print(f"test msg : Vector database indexing completed. Indexed {count} items.")
+
 @app.get("/health")
 def health_check():
     return {"status": "online", "timestamp": str(__import__("datetime").datetime.now())}

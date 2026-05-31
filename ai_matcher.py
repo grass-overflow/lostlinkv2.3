@@ -9,6 +9,8 @@ from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 from PIL import Image
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from vector_db import vector_db
+import requests
 
 NITK_LOCATIONS = [
     "Karavali", "Aravali", "Vindhya", "Satpura", "Nilgiri", "Pushpagiri", "Brahmagiri", 
@@ -73,7 +75,7 @@ def match_with_embeddings(new_item):
     other_items = list(items_col.find({
         "type": {"$ne": new_item["type"]},
         "is_claimed": False,
-        "embedding": {"$exists": True}
+        "embedding": {"$exists": True, "$ne": None}
     }))
     
     if not other_items: return
@@ -348,3 +350,304 @@ def _get_local_classifier():
         weights = MobileNet_V2_Weights.DEFAULT
         _local_classifier = mobilenet_v2(weights=weights).eval()
     return _local_classifier
+
+def run_ensemble_matching(new_item):
+    target_type = "found" if new_item["type"] == "lost" else "lost"
+    
+    # 1. Visual Similarity Lookup via LSH Index
+    visual_similarities = {}
+    new_embedding = None
+    if new_item.get("image_url"):
+        new_img_path = os.path.join(os.getcwd(), new_item["image_url"].lstrip("/"))
+        if os.path.exists(new_img_path):
+            new_embedding = get_image_embedding(new_img_path)
+            
+    if new_embedding is not None:
+        image_matches = vector_db.image_index.query(new_embedding, max_hamming_distance=3)
+        visual_similarities = {cid: sim for cid, sim in image_matches}
+
+    # 2. Textual Similarity Lookup via LSH Index
+    def get_text(it):
+        return f"{it.get('item_name', '')} {it.get('description', '')} {it.get('location', '')}".lower()
+
+    new_text = get_text(new_item)
+    new_text_vector = vector_db.get_text_vector(new_text)
+    
+    text_matches = vector_db.text_index.query(new_text_vector, max_hamming_distance=2)
+    text_similarities = {cid: sim for cid, sim in text_matches}
+
+    # 3. Candidate Pool Retrieval and Filtering
+    candidate_ids = set(list(visual_similarities.keys()) + list(text_similarities.keys()))
+    if not candidate_ids:
+        print("test msg : LSH indices returned no potential candidates.")
+        return
+
+    # Fetch candidate details for validation from MongoDB using candidate IDs
+    from bson import ObjectId
+    candidates = list(items_col.find({
+        "_id": {"$in": [ObjectId(cid) for cid in candidate_ids if ObjectId.is_valid(cid)]},
+        "type": target_type,
+        "is_claimed": False
+    }))
+
+    if not candidates:
+        print("test msg : No unclaimed matching candidate documents in database.")
+        return
+
+    # 4. Spatio-Temporal and Landmark weights
+    def get_campus_location(text):
+        text = text.lower()
+        for loc in NITK_LOCATIONS:
+            if loc.lower() in text:
+                return loc.lower()
+        return None
+
+    def parse_dt(d, t):
+        try:
+            return datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M")
+        except:
+            return None
+
+    new_dt = parse_dt(new_item["date"], new_item["time"])
+    
+    scored_matches = []
+    for cand in candidates:
+        cid = str(cand["_id"])
+        
+        # Base LSH-derived similarity scores
+        text_sim = text_similarities.get(cid, 0.0)
+        visual_sim = visual_similarities.get(cid, 0.0)
+        
+        # Spatial correlation
+        spatial_boost = 0.0
+        new_loc_str = new_item.get("location", "").lower()
+        cand_loc_str = cand.get("location", "").lower()
+        
+        if new_loc_str and cand_loc_str and (new_loc_str in cand_loc_str or cand_loc_str in new_loc_str):
+            spatial_boost += 0.2
+        
+        new_campus_loc = get_campus_location(new_loc_str)
+        cand_campus_loc = get_campus_location(cand_loc_str)
+        if new_campus_loc and cand_campus_loc and new_campus_loc == cand_campus_loc:
+            spatial_boost += 0.3
+            
+        # Temporal correlation
+        temporal_boost = 0.0
+        cand_dt = parse_dt(cand["date"], cand["time"])
+        if new_dt and cand_dt:
+            # Physical constraint: Lost must occur before Found
+            lost_dt = new_dt if new_item["type"] == "lost" else cand_dt
+            found_dt = cand_dt if new_item["type"] == "lost" else new_dt
+            
+            if lost_dt <= found_dt:
+                temporal_boost += 0.15
+                # Apply decay penalty for large time gaps (e.g. within 7 days is best)
+                days_diff = (found_dt - lost_dt).days
+                if days_diff <= 7:
+                    temporal_boost += 0.10
+                elif days_diff <= 30:
+                    temporal_boost += 0.05
+            else:
+                temporal_boost -= 0.10
+
+        # Weighted Ensemble Aggregation
+        has_visual = (new_embedding is not None and cand.get("embedding") is not None)
+        if has_visual:
+            ensemble_score = (0.40 * visual_sim) + (0.35 * text_sim) + (0.15 * spatial_boost) + (0.10 * temporal_boost)
+        else:
+            ensemble_score = (0.65 * text_sim) + (0.20 * spatial_boost) + (0.15 * temporal_boost)
+            
+        ensemble_score = max(0.0, min(1.0, ensemble_score))
+        scored_matches.append((ensemble_score, cand, has_visual, visual_sim, text_sim))
+
+    if not scored_matches:
+        return
+
+    # Sort candidates by ensemble score
+    scored_matches.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_match, has_vis, vis_sim, txt_sim = scored_matches[0]
+    
+    print(f"test msg : Ensemble Match Top Result: {best_match['item_name']} with score {best_score:.4f} (Visual: {vis_sim:.2f}, Text: {txt_sim:.2f})")
+    
+    THRESHOLD = 0.70
+    
+    if best_score >= THRESHOLD:
+        print(f"test msg : Unified Ensemble Match Found: {best_match['item_name']}")
+        
+        match_type = "Multi-Modal Ensemble (LSH-indexed)" if has_vis else "Text/Context Ensemble (LSH-indexed)"
+        reason = (f"Aggregated match score of {best_score:.2f} using "
+                  f"{'MobileNetV2 visual (sim: ' + f'{vis_sim:.2f}' + ') and ' if has_vis else ''}"
+                  f"local dense text similarity (sim: {txt_sim:.2f}) + spatio-temporal validation via LSH search.")
+        
+        matches_col.insert_one({
+            "item_a_id": str(best_match["_id"]),
+            "item_b_id": str(new_item["_id"]) if "_id" in new_item else "new",
+            "match_type": match_type,
+            "score": float(best_score),
+            "reason": reason,
+            "timestamp": datetime.utcnow()
+        })
+        
+        lost_item = best_match if best_match["type"] == "lost" else new_item
+        found_item = new_item if best_match["type"] == "lost" else best_match
+        ai_agent_notify(lost_item, found_item)
+    else:
+        print("test msg : No ensemble match met the threshold.")
+
+def query_rag_agent(user_message: str):
+    user_text_vector = vector_db.get_text_vector(user_message.lower())
+    text_matches = vector_db.text_index.query(user_text_vector, max_hamming_distance=3)
+    candidate_ids = [cid for cid, _ in text_matches][:10]
+    
+    from bson import ObjectId
+    found_items = list(items_col.find({
+        "_id": {"$in": [ObjectId(cid) for cid in candidate_ids if ObjectId.is_valid(cid)]},
+        "type": "found",
+        "is_claimed": False
+    }))
+    
+    # 1. Try Google Gemini API (if key is configured and valid)
+    if api_key and not api_key.startswith("your_gemini_api_key"):
+        try:
+            if found_items:
+                context_lines = []
+                for i, item in enumerate(found_items, start=1):
+                    context_lines.append(
+                        f"[{i}] Item Name: {item.get('item_name','Item')}\n"
+                        f"    Description: {item.get('description','')}\n"
+                        f"    Location Found: {item.get('location','')}\n"
+                        f"    Date Found: {item.get('date','')} at {item.get('time','')}\n"
+                        f"    Claim ID: {item.get('_id','')}\n"
+                    )
+                retrieved_context = "\n".join(context_lines)
+            else:
+                retrieved_context = "No matches found in the current item registry."
+
+            system_prompt = f"""
+You are LostLink AI, the official intelligent conversational RAG (Retrieval-Augmented Generation) assistant for the NITK Campus Lost & Found registry.
+A student/user is searching for a lost item and says: "{user_message}"
+
+Use the following list of retrieved found items to construct your response. Be helpful, clear, and natural:
+1. If you see a potential match in the retrieved list, explain which item matches, where/when it was found, and provide its specific Claim ID. Tell them they can click "Initiate Claim" in the browse section or navigate to claims using that Claim ID.
+2. If there are multiple potential matches, list them clearly and ask for clarification.
+3. If there are no close matches, politely let them know, list the items that were retrieved (in case they recognize something), and advise them to file a formal "Report Lost" submission in the navigation bar.
+
+Do NOT invent or hallucinate any item reports that are not listed in the retrieved context below.
+
+Retrieved Found Items:
+----------------------
+{{retrieved_context}}
+----------------------
+"""
+            response = model.generate_content(system_prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"test msg : Gemini RAG generation failed: {e}. Trying local Ollama fallback...")
+
+    # 2. Try Local CPU-Optimized LLM (google/flan-t5-small) via direct AutoClasses
+    try:
+        tokenizer, model_seq2seq = get_local_rag_model()
+        print("test msg : Generating RAG response via local FLAN-T5 CPU model...")
+        
+        context_str = ""
+        if found_items:
+            for idx, item in enumerate(found_items, start=1):
+                context_str += f"Item {idx}: {item.get('item_name')} found at {item.get('location')}. Description: {item.get('description')}. Claim ID is {item.get('_id')}. "
+        else:
+            context_str = "No matching items found."
+            
+        prompt = (
+            f"Answer the user query based on the following context.\n\n"
+            f"Context: {context_str}\n"
+            f"User Query: {user_message}\n\n"
+            f"Answer:"
+        )
+        
+        inputs = tokenizer(prompt, return_tensors="pt")
+        outputs = model_seq2seq.generate(**inputs, max_length=150)
+        llm_response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+        
+        # If the response is empty or too brief, augment it with retrieved matches for usability
+        if len(llm_response) < 5 or "no " in llm_response.lower() or "not " in llm_response.lower():
+            llm_response = "I found matching records in our local vector database."
+            
+        return (
+            f"**[Local RAG LLM - FLAN-T5]**: {llm_response}\n\n"
+            f"**Retrieved matches from LSH index**:\n"
+            + "\n".join([f"- **{it['item_name']}** found at {it['location']} (Claim ID: `{it['_id']}`)" for it in found_items])
+        )
+    except Exception as e:
+        print(f"test msg : Local FLAN-T5 inference failed: {e}. Trying Ollama...")
+
+    # 3. Try Local Ollama Instance (to keep RAG 100% local/offline)
+    # Checks both container network bridge and host loopback addresses
+    ollama_hosts = ["http://localhost:11434", "http://host.docker.internal:11434"]
+    for url in ollama_hosts:
+        try:
+            res = requests.get(f"{url}/api/tags", timeout=1.0)
+            if res.status_code == 200:
+                models_data = res.json().get("models", [])
+                if models_data:
+                    model_name = models_data[0]["name"]
+                    print(f"test msg : Running RAG via local Ollama LLM model '{model_name}'...")
+                    
+                    context_str = ""
+                    for item in found_items:
+                        context_str += f"- {item.get('item_name')} found at {item.get('location')}. Claim ID: {item.get('_id')}\n"
+                    
+                    prompt = (
+                        f"System: You are LostLink AI, a conversational helper for the NITK registry.\n"
+                        f"Context of retrieved database items:\n{context_str}\n"
+                        f"User: {user_message}\n"
+                        f"Answer the user query based ONLY on the context. Keep it concise."
+                    )
+                    
+                    payload = {
+                        "model": model_name,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                    gen_res = requests.post(f"{url}/api/generate", json=payload, timeout=12.0)
+                    if gen_res.status_code == 200:
+                        return gen_res.json().get("response", "").strip()
+        except Exception:
+            continue
+
+    # 4. Fallback to Local Deterministic LSH RAG Formatter (No API key, no external LLM required)
+    print("test msg : Falling back to local deterministic RAG formatter...")
+    if not found_items:
+        return (
+            "**[Local LSH Matching Engine]**\n\n"
+            "I checked our local vector database but could not find any active, unclaimed items matching your description.\n\n"
+            "*Tip: Try filing a formal 'Report Lost' ticket in the navigation bar. If a matching item is turned in, our background ensemble matcher will auto-notify you!*"
+        )
+    
+    reply = (
+        f"**[Local LSH Matching Engine]**\n\n"
+        f"I retrieved **{len(found_items)} potential match(es)** from the local vector database using LSH index buckets:\n\n"
+    )
+    for i, item in enumerate(found_items, start=1):
+        reply += f"- **{item.get('item_name', 'Item')}**\n"
+        reply += f"   • Description: {item.get('description', '')}\n"
+        reply += f"   • Location Found: {item.get('location', '')}\n"
+        reply += f"   • Date/Time: {item.get('date', '')} at {item.get('time', '')}\n"
+        reply += f"   • Claim ID: `{item.get('_id', '')}`\n\n"
+    
+    reply += (
+        "**How to Claim**:\n"
+        "If one of these matches your missing property, go to Browse Items on the navigation bar, "
+        "locate the item record, and click Initiate Claim using the corresponding Claim ID."
+    )
+    return reply
+
+_local_tokenizer = None
+_local_rag_model = None
+
+def get_local_rag_model():
+    global _local_tokenizer, _local_rag_model
+    if _local_rag_model is None:
+        print("test msg : Loading local FLAN-T5 LLM classes for RAG generation...")
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+        _local_tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
+        _local_rag_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
+    return _local_tokenizer, _local_rag_model
