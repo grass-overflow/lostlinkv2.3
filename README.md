@@ -1,12 +1,8 @@
 # LostLink AI
-## High-Performance, Standalone Multi-Modal RAG Platform & Decoupled Vector Search Engine
+## Standalone Multi-Modal RAG Platform & Decoupled Vector Search Engine
 
-LostLink AI is a production-grade, self-contained intelligent asset recovery platform. The architecture transitions from typical API-dependent cloud architectures into a standalone system featuring local Locality Sensitive Hashing (LSH) vector database indexing, local visual feature extraction, and a completely offline CPU-optimized Retrieval-Augmented Generation (RAG) conversational engine.
+LostLink AI is a self-contained intelligent asset recovery platform. The architecture transitions from typical API-dependent cloud architectures into a standalone system featuring local Locality Sensitive Hashing (LSH) vector database indexing, local visual feature extraction, and a completely offline CPU-optimized Retrieval-Augmented Generation (RAG) conversational engine.
 
-The core philosophy:
-> **Deterministic scoring first. AI reasoning as reinforcement - not replacement.**
-
-Every match is backed by measurable similarity metrics, ensuring explainability, auditability, and production-grade reliability.
 
 ---
 
