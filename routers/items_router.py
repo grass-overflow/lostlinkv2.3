@@ -11,7 +11,7 @@ from database import items_col
 from ai_matcher import (
     match_with_gemini, match_with_tfidf, match_with_embeddings,
     generate_qr_for_item, generate_image_description, generate_local_description,
-    get_image_embedding, run_ensemble_matching, query_rag_agent
+    get_image_embedding, run_ensemble_matching, query_rag_agent, geocode_location
 )
 from routers.auth import get_current_user
 from models import Item
@@ -46,6 +46,8 @@ async def report_found(
     contact_info: str = Form(...),
     priority: bool = Form(False),
     image: UploadFile = File(...),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     user: dict = Depends(get_current_user)
 ):
     filename = f"{uuid.uuid4()}_{image.filename.replace(' ', '_')}"
@@ -63,12 +65,22 @@ async def report_found(
     # Generate local embedding for similarity matching
     embedding = get_image_embedding(file_path)
 
+    # Resolve coordinates via geocode if missing
+    lat_val = latitude
+    lon_val = longitude
+    if lat_val is None or lon_val is None:
+        coords = geocode_location(location)
+        if coords:
+            lat_val, lon_val = coords
+
     item = {
         "item_name": item_name,
         "description": description,
         "date": date,
         "time": time,
         "location": location,
+        "latitude": lat_val,
+        "longitude": lon_val,
         "contact_info": contact_info,
         "priority": priority,
         "image_url": image_url,
@@ -116,6 +128,8 @@ async def report_lost(
     priority: bool = Form(False),
     image: UploadFile = File(...),
     wants_call: bool = Form(False),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     user: dict = Depends(get_current_user)
 ):
     filename = f"{uuid.uuid4()}_{image.filename.replace(' ', '_')}"
@@ -133,12 +147,22 @@ async def report_lost(
     # Generate local embedding for similarity matching
     embedding = get_image_embedding(file_path)
 
+    # Resolve coordinates via geocode if missing
+    lat_val = latitude
+    lon_val = longitude
+    if lat_val is None or lon_val is None:
+        coords = geocode_location(location)
+        if coords:
+            lat_val, lon_val = coords
+
     item = {
         "item_name": item_name,
         "description": description,
         "date": date,
         "time": time,
         "location": location,
+        "latitude": lat_val,
+        "longitude": lon_val,
         "contact_info": contact_info,
         "priority": priority,
         "wants_call": wants_call,

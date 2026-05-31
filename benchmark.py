@@ -8,7 +8,7 @@ def run_retrieval_benchmark(num_items=10000):
     
     # 1. Initialize indices
     image_dim = 1280
-    text_dim = 128
+    text_dim = 1024
     
     image_index = LSHVectorIndex(image_dim, num_hyperplanes=12, seed=42)
     text_index = LSHVectorIndex(text_dim, num_hyperplanes=8, seed=101)

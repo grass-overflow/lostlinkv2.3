@@ -1,4 +1,5 @@
 import os
+import math
 import google.generativeai as genai
 from database import items_col, matches_col
 from notif import send_email, speak_message, make_phone_call
@@ -9,8 +10,15 @@ from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 from PIL import Image
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.linear_model import LogisticRegression
 from vector_db import vector_db
 import requests
+
+def parse_dt(d, t):
+    try:
+        return datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M")
+    except:
+        return None
 
 NITK_LOCATIONS = [
     "Karavali", "Aravali", "Vindhya", "Satpura", "Nilgiri", "Pushpagiri", "Brahmagiri", 
@@ -23,6 +31,261 @@ NITK_LOCATIONS = [
     "Sports Ground", "Basketball Court", "Swimming Pool", "Indoor Sports Complex", "Gym",
     "STEP", "NITK Beach"
 ]
+
+NITK_COORDINATES = {
+    "karavali": (13.0125, 74.7925),
+    "aravali": (13.0120, 74.7920),
+    "vindhya": (13.0118, 74.7922),
+    "satpura": (13.0115, 74.7924),
+    "nilgiri": (13.0110, 74.7926),
+    "pushpagiri": (13.0105, 74.7928),
+    "brahmagiri": (13.0100, 74.7930),
+    "sahyadri": (13.0068, 74.7925),
+    "trishul": (13.0070, 74.7927),
+    "everest": (13.0072, 74.7929),
+    "himalaya": (13.0074, 74.7931),
+    "kailash": (13.0076, 74.7933),
+    "shivalik": (13.0078, 74.7935),
+    "ganga": (13.0080, 74.7937),
+    "kaveri": (13.0082, 74.7939),
+    "yamuna": (13.0084, 74.7941),
+    "sharavathi": (13.0086, 74.7943),
+    "netravathi": (13.0088, 74.7945),
+    "godavari": (13.0090, 74.7947),
+    "international hostel": (13.0095, 74.7915),
+    "mega tower 1": (13.0080, 74.7910),
+    "mega tower 2": (13.0082, 74.7912),
+    "mega tower 3": (13.0084, 74.7914),
+    "lhc-a": (13.0115, 74.7950),
+    "lhc-b": (13.0118, 74.7952),
+    "lecture hall complex": (13.0116, 74.7951),
+    "main building": (13.0108, 74.7943),
+    "central library": (13.0102, 74.7938),
+    "central computer centre": (13.0106, 74.7940),
+    "ccc": (13.0106, 74.7940),
+    "health care centre": (13.0104, 74.7955),
+    "post office": (13.0100, 74.7950),
+    "canara bank": (13.0099, 74.7949),
+    "sbi": (13.0102, 74.7952),
+    "shopping complex": (13.0105, 74.7960),
+    "canteens": (13.0100, 74.7945),
+    "staff club": (13.0112, 74.7930),
+    "silver jubilee auditorium": (13.0110, 74.7948),
+    "sja": (13.0110, 74.7948),
+    "oat": (13.0108, 74.7954),
+    "student activity centre": (13.0098, 74.7955),
+    "sac": (13.0098, 74.7955),
+    "sports ground": (13.0095, 74.7960),
+    "basketball court": (13.0096, 74.7958),
+    "swimming pool": (13.0092, 74.7962),
+    "indoor sports complex": (13.0094, 74.7965),
+    "gym": (13.0093, 74.7964),
+    "step": (13.0130, 74.7950),
+    "nitk beach": (13.0120, 74.7860)
+}
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0 # Radius of Earth in km
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+def geocode_location(location_str):
+    if not location_str:
+        return None
+    loc_lower = location_str.lower()
+    for landmark, coords in NITK_COORDINATES.items():
+        if landmark in loc_lower:
+            return coords
+    return None
+
+clf_with_image = None
+clf_text_only = None
+
+def train_matching_models():
+    global clf_with_image, clf_text_only
+    print("test msg : Training/updating machine-learning-powered matching models...")
+    
+    # 1. Generate robust synthetic training data as baseline
+    X_img_synth = []
+    y_img_synth = []
+    
+    # Positive examples (match = 1)
+    for _ in range(50):
+        # Good visual + good text + close distance + small positive time gap
+        X_img_synth.append([np.random.uniform(0.75, 0.95), np.random.uniform(0.6, 0.9), np.random.uniform(0.0, 0.3), np.random.uniform(0.0, 5.0)])
+        y_img_synth.append(1)
+        # Good visual + moderate text + close distance + small positive time gap
+        X_img_synth.append([np.random.uniform(0.8, 0.99), np.random.uniform(0.2, 0.5), np.random.uniform(0.0, 0.2), np.random.uniform(0.0, 3.0)])
+        y_img_synth.append(1)
+        # Moderate visual + high text + close distance + small positive time gap
+        X_img_synth.append([np.random.uniform(0.4, 0.7), np.random.uniform(0.75, 0.95), np.random.uniform(0.0, 0.1), np.random.uniform(0.0, 2.0)])
+        y_img_synth.append(1)
+        
+    # Negative examples (match = 0)
+    for _ in range(50):
+        # Low similarities
+        X_img_synth.append([np.random.uniform(0.0, 0.4), np.random.uniform(0.0, 0.4), np.random.uniform(1.0, 5.0), np.random.uniform(5.0, 30.0)])
+        y_img_synth.append(0)
+        # High visual similarity but different location/time (different items that look similar)
+        X_img_synth.append([np.random.uniform(0.8, 0.95), np.random.uniform(0.0, 0.2), np.random.uniform(2.0, 10.0), np.random.uniform(0.0, 10.0)])
+        y_img_synth.append(0)
+        # High text similarity but huge distance or time gap
+        X_img_synth.append([np.random.uniform(0.2, 0.5), np.random.uniform(0.8, 0.95), np.random.uniform(5.0, 20.0), np.random.uniform(15.0, 60.0)])
+        y_img_synth.append(0)
+        # Negative time gap (lost after found)
+        X_img_synth.append([np.random.uniform(0.5, 0.9), np.random.uniform(0.5, 0.9), np.random.uniform(0.0, 2.0), np.random.uniform(-10.0, -0.1)])
+        y_img_synth.append(0)
+
+    # Features for text-only model: [text_sim, distance_km, time_gap_days]
+    X_txt_synth = []
+    y_txt_synth = []
+    
+    # Positive examples (match = 1)
+    for _ in range(50):
+        # High text similarity + close distance + small positive time gap
+        X_txt_synth.append([np.random.uniform(0.7, 0.95), np.random.uniform(0.0, 0.3), np.random.uniform(0.0, 5.0)])
+        y_txt_synth.append(1)
+        # Moderate text similarity + very close distance + small positive time gap
+        X_txt_synth.append([np.random.uniform(0.5, 0.7), np.random.uniform(0.0, 0.1), np.random.uniform(0.0, 2.0)])
+        y_txt_synth.append(1)
+        
+    # Negative examples (match = 0)
+    for _ in range(50):
+        # Low similarity
+        X_txt_synth.append([np.random.uniform(0.0, 0.35), np.random.uniform(1.0, 5.0), np.random.uniform(5.0, 30.0)])
+        y_txt_synth.append(0)
+        # High similarity but high distance/time gap
+        X_txt_synth.append([np.random.uniform(0.7, 0.95), np.random.uniform(3.0, 15.0), np.random.uniform(10.0, 60.0)])
+        y_txt_synth.append(0)
+        # Negative time gap
+        X_txt_synth.append([np.random.uniform(0.5, 0.9), np.random.uniform(0.0, 2.0), np.random.uniform(-10.0, -0.1)])
+        y_txt_synth.append(0)
+
+    X_img = np.array(X_img_synth)
+    y_img = np.array(y_img_synth)
+    X_txt = np.array(X_txt_synth)
+    y_txt = np.array(y_txt_synth)
+
+    # Mix in actual historical matches if available from MongoDB
+    try:
+        from bson import ObjectId
+        historical_matches = list(matches_col.find())
+        print(f"test msg : Found {len(historical_matches)} confirmed matches in DB to include in training.")
+        
+        hist_X_img = []
+        hist_y_img = []
+        hist_X_txt = []
+        hist_y_txt = []
+        
+        for match in historical_matches:
+            item_a = items_col.find_one({"_id": ObjectId(match["item_a_id"])})
+            item_b = items_col.find_one({"_id": ObjectId(match["item_b_id"])}) if match.get("item_b_id") != "new" else None
+            
+            if item_a and item_b:
+                # 1. Visual similarity
+                vis_sim = 0.0
+                has_vis = False
+                if item_a.get("embedding") and item_b.get("embedding"):
+                    has_vis = True
+                    emb_a = np.array(item_a["embedding"])
+                    emb_b = np.array(item_b["embedding"])
+                    norm_a = np.linalg.norm(emb_a)
+                    norm_b = np.linalg.norm(emb_b)
+                    if norm_a > 0 and norm_b > 0:
+                        vis_sim = float(np.dot(emb_a, emb_b) / (norm_a * norm_b))
+                
+                # 2. Text similarity
+                text_sim = 0.0
+                text_a = f"{item_a.get('item_name', '')} {item_a.get('description', '')} {item_a.get('location', '')}".lower()
+                text_b = f"{item_b.get('item_name', '')} {item_b.get('description', '')} {item_b.get('location', '')}".lower()
+                vec_a = vector_db.get_text_vector(text_a)
+                vec_b = vector_db.get_text_vector(text_b)
+                norm_va = np.linalg.norm(vec_a)
+                norm_vb = np.linalg.norm(vec_b)
+                if norm_va > 0 and norm_vb > 0:
+                    text_sim = float(np.dot(vec_a, vec_b) / (norm_va * norm_vb))
+                
+                # 3. Distance
+                dist_km = 0.5
+                lat_a, lon_a = item_a.get("latitude"), item_a.get("longitude")
+                lat_b, lon_b = item_b.get("latitude"), item_b.get("longitude")
+                if lat_a is not None and lon_a is not None and lat_b is not None and lon_b is not None:
+                    dist_km = haversine(lat_a, lon_a, lat_b, lon_b)
+                
+                # 4. Time gap
+                time_gap_days = 3.0
+                dt_a = parse_dt(item_a.get("date"), item_a.get("time"))
+                dt_b = parse_dt(item_b.get("date"), item_b.get("time"))
+                if dt_a and dt_b:
+                    lost_dt = dt_a if item_a["type"] == "lost" else dt_b
+                    found_dt = dt_b if item_a["type"] == "lost" else dt_a
+                    time_gap_days = (found_dt - lost_dt).total_seconds() / 86400.0
+                
+                if has_vis:
+                    hist_X_img.append([vis_sim, text_sim, dist_km, time_gap_days])
+                    hist_y_img.append(1)
+                else:
+                    hist_X_txt.append([text_sim, dist_km, time_gap_days])
+                    hist_y_txt.append(1)
+                    
+                unrelated_item = items_col.find_one({
+                    "type": item_b["type"],
+                    "_id": {"$ne": item_b["_id"]}
+                })
+                if unrelated_item:
+                    u_vis_sim = 0.0
+                    u_has_vis = False
+                    if item_a.get("embedding") and unrelated_item.get("embedding"):
+                        u_has_vis = True
+                        emb_u = np.array(unrelated_item["embedding"])
+                        norm_u = np.linalg.norm(emb_u)
+                        if norm_a > 0 and norm_u > 0:
+                            u_vis_sim = float(np.dot(emb_a, emb_u) / (norm_a * norm_u))
+                    
+                    u_text_sim = 0.0
+                    text_u = f"{unrelated_item.get('item_name', '')} {unrelated_item.get('description', '')} {unrelated_item.get('location', '')}".lower()
+                    vec_u = vector_db.get_text_vector(text_u)
+                    norm_vu = np.linalg.norm(vec_u)
+                    if norm_va > 0 and norm_vu > 0:
+                        u_text_sim = float(np.dot(vec_a, vec_u) / (norm_va * norm_vu))
+                    
+                    u_dist_km = 0.5
+                    lat_u, lon_u = unrelated_item.get("latitude"), unrelated_item.get("longitude")
+                    if lat_a is not None and lon_a is not None and lat_u is not None and lon_u is not None:
+                        u_dist_km = haversine(lat_a, lon_a, lat_u, lon_u)
+                    
+                    u_time_gap_days = 3.0
+                    dt_u = parse_dt(unrelated_item.get("date"), unrelated_item.get("time"))
+                    if dt_a and dt_u:
+                        lost_dt = dt_a if item_a["type"] == "lost" else dt_u
+                        found_dt = dt_u if item_a["type"] == "lost" else dt_a
+                        u_time_gap_days = (found_dt - lost_dt).total_seconds() / 86400.0
+                        
+                    if u_has_vis:
+                        hist_X_img.append([u_vis_sim, u_text_sim, u_dist_km, u_time_gap_days])
+                        hist_y_img.append(0)
+                    else:
+                        hist_X_txt.append([u_text_sim, u_dist_km, u_time_gap_days])
+                        hist_y_txt.append(0)
+                        
+        if hist_X_img:
+            X_img = np.vstack([X_img, hist_X_img])
+            y_img = np.concatenate([y_img, hist_y_img])
+        if hist_X_txt:
+            X_txt = np.vstack([X_txt, hist_X_txt])
+            y_txt = np.concatenate([y_txt, hist_y_txt])
+            
+    except Exception as e:
+        print(f"test msg : Could not incorporate MongoDB matches for ML training: {e}")
+
+    clf_with_image = LogisticRegression(class_weight="balanced")
+    clf_with_image.fit(X_img, y_img)
+    clf_text_only = LogisticRegression(class_weight="balanced")
+    clf_text_only.fit(X_txt, y_txt)
+    print("test msg : ML matching models training completed.")
 
 api_key = os.getenv("GEMINI_API_KEY", "").strip()
 if api_key.startswith('"') and api_key.endswith('"'):
@@ -58,7 +321,11 @@ def get_image_embedding(image_path):
             img_t = transform(img).unsqueeze(0)
             with torch.no_grad():
                 embedding = model(img_t)
-            return embedding.squeeze().numpy()
+            vec = embedding.squeeze().numpy()
+            norm = np.linalg.norm(vec)
+            if norm > 0:
+                vec = vec / norm
+            return vec
     except Exception as e:
         print(f"test msg : Error extracting local embedding: {e}")
         return None
@@ -189,12 +456,6 @@ def match_with_tfidf(new_item):
     similarities = cosine_similarity([vectors[-1]], vectors[:-1])[0]
 
     from datetime import datetime
-
-    def parse_dt(d, t):
-        try:
-            return datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M")
-        except:
-            return None
 
     new_dt = parse_dt(new_item["date"], new_item["time"])
 
@@ -394,20 +655,6 @@ def run_ensemble_matching(new_item):
         print("test msg : No unclaimed matching candidate documents in database.")
         return
 
-    # 4. Spatio-Temporal and Landmark weights
-    def get_campus_location(text):
-        text = text.lower()
-        for loc in NITK_LOCATIONS:
-            if loc.lower() in text:
-                return loc.lower()
-        return None
-
-    def parse_dt(d, t):
-        try:
-            return datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M")
-        except:
-            return None
-
     new_dt = parse_dt(new_item["date"], new_item["time"])
     
     scored_matches = []
@@ -418,66 +665,68 @@ def run_ensemble_matching(new_item):
         text_sim = text_similarities.get(cid, 0.0)
         visual_sim = visual_similarities.get(cid, 0.0)
         
-        # Spatial correlation
-        spatial_boost = 0.0
-        new_loc_str = new_item.get("location", "").lower()
-        cand_loc_str = cand.get("location", "").lower()
+        # 1. Distance Calculation (Haversine)
+        dist_km = 0.5 # default/neutral value
+        lat_new, lon_new = new_item.get("latitude"), new_item.get("longitude")
+        lat_cand, lon_cand = cand.get("latitude"), cand.get("longitude")
         
-        if new_loc_str and cand_loc_str and (new_loc_str in cand_loc_str or cand_loc_str in new_loc_str):
-            spatial_boost += 0.2
-        
-        new_campus_loc = get_campus_location(new_loc_str)
-        cand_campus_loc = get_campus_location(cand_loc_str)
-        if new_campus_loc and cand_campus_loc and new_campus_loc == cand_campus_loc:
-            spatial_boost += 0.3
+        # Try geocoding if coordinates are missing in MongoDB
+        if lat_new is None or lon_new is None:
+            coords = geocode_location(new_item.get("location"))
+            if coords:
+                lat_new, lon_new = coords
+        if lat_cand is None or lon_cand is None:
+            coords = geocode_location(cand.get("location"))
+            if coords:
+                lat_cand, lon_cand = coords
+                
+        if lat_new is not None and lon_new is not None and lat_cand is not None and lon_cand is not None:
+            dist_km = haversine(lat_new, lon_new, lat_cand, lon_cand)
             
-        # Temporal correlation
-        temporal_boost = 0.0
+        # 2. Time Gap Calculation (in days)
+        time_gap_days = 3.0 # default/neutral value
         cand_dt = parse_dt(cand["date"], cand["time"])
         if new_dt and cand_dt:
             # Physical constraint: Lost must occur before Found
             lost_dt = new_dt if new_item["type"] == "lost" else cand_dt
             found_dt = cand_dt if new_item["type"] == "lost" else new_dt
             
-            if lost_dt <= found_dt:
-                temporal_boost += 0.15
-                # Apply decay penalty for large time gaps (e.g. within 7 days is best)
-                days_diff = (found_dt - lost_dt).days
-                if days_diff <= 7:
-                    temporal_boost += 0.10
-                elif days_diff <= 30:
-                    temporal_boost += 0.05
-            else:
-                temporal_boost -= 0.10
+            # Signed time gap: found_dt - lost_dt (should be positive)
+            time_gap_days = (found_dt - lost_dt).total_seconds() / 86400.0
 
-        # Weighted Ensemble Aggregation
+        # 3. Model Inference (Logistic Regression)
+        if clf_with_image is None or clf_text_only is None:
+            train_matching_models()
+            
         has_visual = (new_embedding is not None and cand.get("embedding") is not None)
         if has_visual:
-            ensemble_score = (0.40 * visual_sim) + (0.35 * text_sim) + (0.15 * spatial_boost) + (0.10 * temporal_boost)
+            features = np.array([[visual_sim, text_sim, dist_km, time_gap_days]])
+            ensemble_score = float(clf_with_image.predict_proba(features)[0][1])
         else:
-            ensemble_score = (0.65 * text_sim) + (0.20 * spatial_boost) + (0.15 * temporal_boost)
+            features = np.array([[text_sim, dist_km, time_gap_days]])
+            ensemble_score = float(clf_text_only.predict_proba(features)[0][1])
             
         ensemble_score = max(0.0, min(1.0, ensemble_score))
-        scored_matches.append((ensemble_score, cand, has_visual, visual_sim, text_sim))
+        scored_matches.append((ensemble_score, cand, has_visual, visual_sim, text_sim, dist_km, time_gap_days))
 
     if not scored_matches:
         return
 
     # Sort candidates by ensemble score
     scored_matches.sort(key=lambda x: x[0], reverse=True)
-    best_score, best_match, has_vis, vis_sim, txt_sim = scored_matches[0]
+    best_score, best_match, has_vis, vis_sim, txt_sim, dist_km, time_gap_days = scored_matches[0]
     
-    print(f"test msg : Ensemble Match Top Result: {best_match['item_name']} with score {best_score:.4f} (Visual: {vis_sim:.2f}, Text: {txt_sim:.2f})")
+    print(f"test msg : Ensemble Match Top Result: {best_match['item_name']} with ML match probability {best_score:.4f} (Visual: {vis_sim:.2f}, Text: {txt_sim:.2f}, Distance: {dist_km:.2f} km, Time Gap: {time_gap_days:.2f} days)")
     
     THRESHOLD = 0.70
     
     if best_score >= THRESHOLD:
         print(f"test msg : Unified Ensemble Match Found: {best_match['item_name']}")
         
-        match_type = "Multi-Modal Ensemble (LSH-indexed)" if has_vis else "Text/Context Ensemble (LSH-indexed)"
-        reason = (f"Aggregated match score of {best_score:.2f} using "
+        match_type = "Multi-Modal ML Ensemble (LSH-indexed)" if has_vis else "Text/Context ML Ensemble (LSH-indexed)"
+        reason = (f"ML predicted match probability of {best_score:.2f} using "
                   f"{'MobileNetV2 visual (sim: ' + f'{vis_sim:.2f}' + ') and ' if has_vis else ''}"
-                  f"local dense text similarity (sim: {txt_sim:.2f}) + spatio-temporal validation via LSH search.")
+                  f"local dense text similarity (sim: {txt_sim:.2f}) + Haversine distance spatial validation ({dist_km:.2f} km) via LSH search.")
         
         matches_col.insert_one({
             "item_a_id": str(best_match["_id"]),
@@ -651,3 +900,9 @@ def get_local_rag_model():
         _local_tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
         _local_rag_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
     return _local_tokenizer, _local_rag_model
+
+# Train machine learning matching models on startup
+try:
+    train_matching_models()
+except Exception as e:
+    print(f"Failed to pre-train matching models on module import: {e}")

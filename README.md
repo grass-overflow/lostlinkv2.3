@@ -41,7 +41,7 @@ flowchart TD
     %% Storage & Indexing
     subgraph Storage & Indexing [Storage & Vector Indexing Layer]
         DB[(MongoDB Document Store)]
-        LSH_Store[vector_db.pkl Cache]
+        LSH_Store[vector_db.db SQLite Storage]
         LSH_Index[[Local LSH Vector Index]]
     end
 
@@ -146,6 +146,11 @@ lostlinkv2.3/
 ## 3. Deep-Dive Engineering Architecture
 
 ### Multi-Modal Matching Engine (M3E)
+To transition from arbitrary heuristic weights to data-driven aggregation, LostLink utilizes **Logistic Regression** classifier models (`scikit-learn`) for score aggregation:
+* **Features Used (With Image)**: `[visual_similarity, text_similarity, distance_km, time_gap_days]`
+* **Features Used (Text Only)**: `[text_similarity, distance_km, time_gap_days]`
+* **Training Pipeline**: Generates a robust synthetic training baseline (handling edge-cases like negative time gaps, geographic disparities, and matching textual similarities) combined dynamically with historical confirmed match labels retrieved from MongoDB on startup.
+* **Output**: Computes a mathematically grounded match probability score via `.predict_proba()` (thresholded at $\ge 0.70$).
 
 ### Visual Feature Extraction (MobileNetV2)
 * **Model**: MobileNetV2 pretrained on ImageNet
@@ -170,20 +175,20 @@ transforms = T.Compose([
 ### Stateless NLP Vectorization (HashingVectorizer)
 Standard Bag-of-Words and TF-IDF models require generating a vocabulary dictionary of size $V$ across the entire database. If a new node starts up, it must download or synchronize this vocabulary. 
 
-To achieve **stateless scale**, LostLink uses the hashing trick:
-* **Vectorizer**: `HashingVectorizer(n_features=128, alternate_sign=False)`
+To achieve **stateless scale** and avoid hash collisions, LostLink uses the hashing trick scaled to higher dimensions:
+* **Vectorizer**: `HashingVectorizer(n_features=1024, alternate_sign=False)`
 * **Hash Function**: MurmurHash3
-* **Vocabulary Requirement**: **None**. Word tokens are mapped directly to indices in a 128-dimensional space via their hash values. This allows stateless, zero-overhead text feature extraction.
+* **Vocabulary Requirement**: **None**. Word tokens are mapped directly to indices in a 1024-dimensional space via their hash values. This allows stateless, zero-overhead, collision-resistant text feature extraction.
 
-### Spatio-Temporal Proximity Calculations
-* **Spatial Logic**: Proximity checks determine if the reported lost and found locations share landmarks from `NITK_LOCATIONS` (e.g. LHC-A, Nilgiri, SJA). If they match, a boost $+0.10$ is applied to the composite similarity score.
-* **Temporal Sequence Enforcement**: The system strictly enforces that the lost timestamp is earlier than the found timestamp. If this condition is violated, a penalty of infinity is applied, instantly invalidating the match.
+### Spatial and Temporal Engine
+* **Spatial Logic**: Leverages exact coordinate-based matching. Users can optionally input exact `latitude` and `longitude` coordinates during item reporting. If coordinates are not provided, landmark-based geocoding automatically resolves the location against a pre-mapped campus landmark dictionary (`NITK_COORDINATES`). The system calculates the physical distance between reports using the **Haversine formula**.
+* **Temporal Sequence**: Calculates the signed time gap in days between the lost time and the found time.
 
 ---
 
 ## 4. Decoupled LSH Vector Database Design
 
-Given a high-dimensional vector $v \in \mathbb{R}^D$ (where $D=1280$ for images, $D=128$ for text), LSH maps it to a low-dimensional binary signature key $h(v) \in \{0, 1\}^K$ using random projection hyperplanes.
+Given a high-dimensional vector $v \in \mathbb{R}^D$ (where $D=1280$ for images, $D=1024$ for text), LSH maps it to a low-dimensional binary signature key $h(v) \in \{0, 1\}^K$ using random projection hyperplanes.
 
 ### The Algorithm
 1. **Hyperplane Generation**: During index creation, we build a random projection matrix $R \in \mathbb{R}^{K \times D}$ where each entry is sampled from a standard normal distribution:
@@ -280,8 +285,8 @@ Stores ensemble matches identified by the backend:
 * **`POST /api/auth/login`**: Authenticates credentials. Returns a stateless JWT bearer token.
 
 ### Item Routes (`routers/items_router.py`)
-* **`POST /api/items/report/lost`**: Reports a lost item. Registers details in MongoDB.
-* **`POST /api/items/report/found`**: Reports a found item. Preprocesses the uploaded image via PyTorch, indexes it in the LSH Vector DB, and stores it in MongoDB.
+* **`POST /api/report_lost`**: Reports a lost item. Accepts optional `latitude` and `longitude` fields (falling back to landmark geocoding if absent). Registers details in MongoDB.
+* **`POST /api/report_found`**: Reports a found item. Preprocesses the uploaded image via PyTorch, extracts normalized visual embeddings, indexes it in the local SQLite-backed LSH Vector DB, and stores it in MongoDB.
 * **`GET /api/items/browse`**: Retrieves active lost and found listings.
 * **`POST /api/items/claim`**: Initiates a claim for a found item using a matching Claim ID.
 * **`POST /api/chat`**: Conversational RAG assistant query. Runs search against the local LSH index and formats/summarizes matches using the active RAG tier.
@@ -305,21 +310,26 @@ Stores ensemble matches identified by the backend:
 
 ## 9. Performance Benchmarks
 
-The following benchmarks were recorded on an Intel i7-11800H CPU @ 2.30GHz with 16GB RAM:
+The following benchmarks were recorded natively inside the containerized CPU environment:
 
 ### Retrieval Efficiency ($N = 10,000$ Items)
 
 | Retrieval Strategy | Latency (ms) | Scaling Complexity | Memory Overhead |
 | :--- | :--- | :--- | :--- |
-| **Linear DB Scan ($O(N)$)** | 114.2 ms | Linear | Negligible |
-| **Custom LSH Index ($O(\log N)$)** | **4.1 ms** | Logarithmic | ~45 MB |
+| **Linear DB Scan ($O(N)$)** | 43.72 ms | Linear | Negligible |
+| **Custom LSH Index** | **25.88 ms** | Sub-linear / Approximate Nearest Neighbor (ANN) | ~45 MB (Retrieves 3,577 candidates) |
+
+**Mathematical Analysis of LSH Candidate Coverage:**
+With $K = 8$ hyperplanes (256 buckets) and a Hamming distance query threshold of $M = 3$, the theoretical bucket coverage is:
+$$\text{Coverage} = \frac{\sum_{i=0}^{3} \binom{8}{i}}{256} = \frac{1 + 8 + 28 + 56}{256} = \frac{93}{256} \approx 36.33\%$$
+Under a uniform random distribution of generated mock vectors, this resolves to $\approx 3,633$ candidates, aligning closely with our empirical search size of **3,577** candidates. For real-world correlated data distributions, candidate coverage decreases dramatically, increasing retrieval speedups.
 
 ### RAG Generation Latency & Footprint
 
 | Engine Option | API Dependency | Average Response Latency | RAM Usage |
 | :--- | :--- | :--- | :--- |
 | **Google Gemini Flash** | Cloud API | 1,840 ms | < 5 MB |
-| **Local FLAN-T5 (CPU)** | **None (100% Offline)** | **480 ms** | **~240 MB** |
+| **Local FLAN-T5 (CPU)** | **None (100% Offline)** | **117.92 ms** | **~240 MB** |
 | **Local LSH Formatter** | **None (100% Offline)** | **0.8 ms** | < 1 MB |
 
 To record actual, live benchmarks on your own machine, execute:

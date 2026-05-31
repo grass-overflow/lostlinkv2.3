@@ -18,6 +18,8 @@ class Item(BaseModel):
     date: str
     time: str
     location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     image_url: str
     contact_info: str
     priority: Optional[bool] = False

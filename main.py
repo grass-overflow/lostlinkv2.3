@@ -28,7 +28,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     import os
-    if not os.path.exists("vector_db.pkl"):
+    if not os.path.exists("vector_db.db"):
         print("test msg : Initializing local vector database index from MongoDB...")
         from vector_db import vector_db
         from database import items_col
