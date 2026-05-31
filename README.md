@@ -3,6 +3,11 @@
 
 LostLink AI is a production-grade, self-contained intelligent asset recovery platform. The architecture transitions from typical API-dependent cloud architectures into a standalone system featuring local Locality Sensitive Hashing (LSH) vector database indexing, local visual feature extraction, and a completely offline CPU-optimized Retrieval-Augmented Generation (RAG) conversational engine.
 
+The core philosophy:
+> **Deterministic scoring first. AI reasoning as reinforcement - not replacement.**
+
+Every match is backed by measurable similarity metrics, ensuring explainability, auditability, and production-grade reliability.
+
 ---
 
 ## 1. System Architecture
@@ -14,7 +19,7 @@ flowchart TD
         Chat[RAG Chat Copilot]
     end
 
-    subgraph API Gateway [FastAPI Backend]
+    subgraph API Gateway [FastAPI Gateway]
         Auth[JWT Session & Auth Router]
         Items[Item Registry Router]
         ChatAPI[/api/chat Endpoint]
@@ -52,13 +57,66 @@ flowchart TD
 
 ---
 
-## 2. Decoupled Local Vector Database Design
+## 2. Core Engineering Architecture
+
+### Multi-Modal Matching Engine (M3E)
+Each report passes through a layered, multi-modal verification system:
+
+#### Layer 1: Visual Feature Extraction (Local Inference)
+* **Engine**: MobileNetV2 (PyTorch / torchvision)
+* **Embedding Size**: 1024–1280 dimensions
+* **Similarity Metric**: Cosine Similarity
+* **Activation Threshold**: 0.82 (configurable)
+
+##### Preprocessing Pipeline
+Before inference, images undergo standardized preparation:
+* Resize to 256px
+* Center-crop to 224px
+* RGB conversion
+* Tensor normalization (using ImageNet means: `[0.485, 0.456, 0.406]` and std: `[0.229, 0.224, 0.225]`)
+
+This guarantees consistent feature maps regardless of original resolution and acts as a neural compression layer.
+
+##### Why Local Inference?
+* Eliminates cloud latency for visual matching
+* Enables sub-second repository-wide vector comparisons
+* Reduces API dependency and cost
+
+#### Layer 2: Lexical & Contextual Matching (Stateless Feature Hashing)
+* **Engine**: Scikit-Learn `HashingVectorizer`
+* **Technique**: Character and Word-level Trigram Analysis (`ngram_range=(1,3)`)
+* **Representation**: Sparse matrix ($2^{10}$ / 1024-dimensional space)
+
+The system captures semantic substructures such as:
+* "black backpack"
+* "broken hinge"
+* "library near LHC"
+
+By replacing standard `TfidfVectorizer` with `HashingVectorizer`, the vectorization is completely stateless. This ensures consistent vector mappings across multiple nodes without requiring shared vocabulary dictionaries.
+
+#### Layer 3: Spatio-Temporal Correlation Engine
+##### Spatial Logic
+A landmark-aware matching algorithm weights results based on proximity to 50+ predefined campus landmarks (NITK Surathkal optimized), including:
+* Hostels (GH-1 to GH-6, Mega Towers)
+* LHC-A, LHC-B
+* Central Library
+* Main Building
+* SAC, SJA
+* Sports Complex
+* NITK Beach
+
+Matches sharing validated landmark tags receive weighted boosts.
+
+##### Temporal Validation
+A sequence-validation algorithm enforces:
+$$T_{\text{lost}} < T_{\text{found}}$$
+This prevents false positives from historical records and improves reliability of match suggestions.
+
+---
+
+## 3. Decoupled Local Vector Database Design
 
 To ensure horizontal scaling across multi-node deployments without external dictionary synchronization, LostLink implements a **custom Locality Sensitive Hashing (LSH) index** for sub-linear semantic retrieval.
-
-### Vector Generation Pipelines
-* **Visual Embeddings**: Standardized pre-processing (Resize 256px -> Center Crop 224px -> Tensor Normalization) followed by local inference on **MobileNetV2** (1024-dimensional feature vector).
-* **Textual Embeddings**: Generated via a stateless **`HashingVectorizer`** mapping descriptions into a $2^{10}$ (1024-dimensional) sparse bag-of-words space. This eliminates the dictionary synchronization overhead inherent in standard TF-IDF.
 
 ### Locality Sensitive Hashing (LSH) Mechanics
 High-dimensional dense features are mapped to low-dimensional binary keys using random projection. Given a vector $v$ and a random projection matrix $R \in \mathbb{R}^{K \times D}$:
@@ -69,7 +127,7 @@ This results in a $K$-bit binary hash representing the signature bucket.
 
 ---
 
-## 3. Conversational RAG Architecture
+## 4. Conversational RAG Architecture
 
 The platform supports a tiered, highly resilient conversational search framework running completely offline or fallback cloud-assisted.
 
@@ -105,21 +163,57 @@ If no cloud API key is configured, the system loads the **`google/flan-t5-small`
 
 ---
 
-## 4. Multi-Modal Ensemble Matching Engine
+## 5. Image Engineering & Payload Optimization
 
-When a new item is reported, an ensemble matching routine computes a composite similarity score $S$ to verify if a matching pair exists:
+High-resolution image uploads can cause increased payload sizes, slower mobile uploads, higher storage usage, and memory spikes during inference. LostLink implements a two-stage optimization pipeline:
 
-$$S = w_{\text{text}} \cdot S_{\text{text}} + w_{\text{visual}} \cdot S_{\text{visual}} + S_{\text{spatial}} - S_{\text{temporal}}$$
+### Stage 1: Intelligent Image Compression
+Before storage:
+* Images are resized
+* Quality is reduced within perceptual tolerance
+* RGB standardization is applied
 
-Where:
-* $S_{\text{text}}$: Cosine similarity of the HashingVectorizer text vectors.
-* $S_{\text{visual}}$: Cosine similarity of MobileNetV2 image embeddings.
-* $S_{\text{spatial}}$: Spatial correlation boost (+0.1 if both coordinates are within proximity bounds).
-* $S_{\text{temporal}}$: Time penalty based on the difference between lost and found timestamps (violating sequences like $T_{\text{lost}} > T_{\text{found}}$ are filtered out).
+This reduces upload latency, storage footprint, and inference memory load.
+
+### Stage 2: Image → Semantic Text Transformation
+Instead of repeatedly transmitting image binaries:
+1. Image is analyzed once.
+2. Semantic description is generated.
+3. Structured textual representation is stored.
+
+This allows search matchers to perform similarity evaluations on image-derived text, reducing repeated cloud API calls and generating searchable metadata.
 
 ---
 
-## 5. Performance Benchmarks
+## 6. Recovery Infrastructure & Features
+
+### QR-Based Offline-to-Online Bridge
+* Unique QR codes are generated per item using the `qrcode` library and encoded in Base64.
+* Printable tags can be affixed to physical assets.
+* Scanning the QR opens a secure recovery portal where the finder can notify the owner without needing an account.
+
+### Multi-Channel Notification Pipeline
+* **SMTP Email Alerts**: Automated upon high-confidence matches, containing direct claim links and context summaries.
+* **Voice Engine (Local)**: Local `pyttsx3`-based speech alerts.
+* **Telephony Integration**: Twilio API integration to trigger automated phone calls for high-priority reports.
+
+---
+
+## 7. Authentication & Security
+
+### JWT Infrastructure
+* Stateless session management.
+* Bearer token authentication.
+* Protected API endpoints.
+
+### Password Security
+* `bcrypt` salted hashing.
+* 72-byte safe validation.
+* Secure credential storage.
+
+---
+
+## 8. Performance Benchmarks
 
 The following benchmarks were recorded on an Intel i7-11800H CPU @ 2.30GHz with 16GB RAM:
 
@@ -140,7 +234,33 @@ The following benchmarks were recorded on an Intel i7-11800H CPU @ 2.30GHz with 
 
 ---
 
-## 6. Docker & Local Deployment Setup
+## 9. Research Positioning: Deterministic, Not Agentic
+
+LostLink AI is a deterministic trigger-response infrastructure where every match is backed by:
+* Cosine Similarity scores
+* HashingVectorizer weight distributions
+* Spatio-temporal validation
+* Configurable thresholds
+
+AI/LLM is used purely as a verification and formatting layer, not a decision-making authority. This design guarantees **explainability**, **auditability**, **predictability**, and **production reliability**.
+
+---
+
+## 10. Demonstrated Engineering Competencies
+
+* Multi-modal AI system design
+* Neural feature extraction pipelines
+* NLP similarity modeling (HashingVectorizer & Trigrams)
+* Local CPU LLM integration with direct AutoModel classes
+* High-performance REST API design
+* Async backend engineering (FastAPI BackgroundTasks)
+* Image compression optimization
+* Security-first authentication systems
+* Containerized multi-container cloud deployment
+
+---
+
+## 11. Docker & Local Deployment Setup
 
 The entire stack is containerized using a multi-container Docker Compose setup containing the FastAPI application and a persistent MongoDB database.
 
