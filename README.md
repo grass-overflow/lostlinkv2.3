@@ -3,217 +3,188 @@
 
 LostLink AI is a production-grade, self-contained intelligent asset recovery platform. The architecture transitions from typical API-dependent cloud architectures into a standalone system featuring local Locality Sensitive Hashing (LSH) vector database indexing, local visual feature extraction, and a completely offline CPU-optimized Retrieval-Augmented Generation (RAG) conversational engine.
 
-The core philosophy:
-> **Deterministic scoring first. AI reasoning as reinforcement - not replacement.**
-
-Every match is backed by measurable similarity metrics, ensuring explainability, auditability, and production-grade reliability.
-
 ---
 
-## 1. System Architecture
+## 1. System Architecture & Flow
+
+This flowchart illustrates the end-to-end data lifecycle, from asset registration to vector database query, ensemble scoring, and RAG response generation.
 
 ```mermaid
 flowchart TD
-    subgraph Client Layer [Client Interface]
-        UI[Vanilla JS / HTML5 Frontend]
-        Chat[RAG Chat Copilot]
-    end
+    %% User Inputs
+    UserLost[User Reports Lost Item] --> API_Lost[FastAPI lost_router]
+    UserFound[User Reports Found Item] --> API_Found[FastAPI found_router]
+    UserChat[User Queries Chat Copilot] --> API_Chat[FastAPI chat_router]
 
-    subgraph API Gateway [FastAPI Gateway]
-        Auth[JWT Session & Auth Router]
-        Items[Item Registry Router]
-        ChatAPI[/api/chat Endpoint]
-    end
-
-    subgraph ML Pipeline [Local ML & Feature Extraction]
-        IMG[MobileNetV2 Visual Preprocessor]
-        TXT[Stateless HashingVectorizer]
-    end
-
-    subgraph Storage Layer [Vector & Document Store]
-        LSH[Custom LSH Vector Database]
+    %% Storage & Indexing
+    subgraph Storage & Indexing [Storage & Vector Indexing Layer]
         DB[(MongoDB Document Store)]
+        LSH_Store[vector_db.pkl Cache]
+        LSH_Index[[Local LSH Vector Index]]
     end
 
-    subgraph RAG Engine [Conversational Reasoning Engine]
-        HF[Local Hugging Face AutoModel FLAN-T5]
-        Gemini[Google Gemini API Fallback]
-        LocalForm[Deterministic LSH Formatter]
+    API_Found --> Compress[Intelligent Image Compressor]
+    Compress --> Extract_Vis[MobileNetV2 Visual Embeddings]
+    API_Found --> Extract_Txt[HashingVectorizer Text Embeddings]
+    
+    Extract_Vis --> Insert_LSH[Insert into LSH Index]
+    Extract_Txt --> Insert_LSH
+    Insert_LSH --> LSH_Index
+    Insert_LSH --> LSH_Store
+    API_Found --> Store_DB[Save Report Metadata in MongoDB]
+    Store_DB --> DB
+
+    %% Matching Pipeline
+    subgraph Matching Engine [Multi-Modal Ensemble Matching Engine]
+        Query_LSH[LSH Hamming Distance Lookup]
+        Calc_Sim[Compute Cosine Similarity]
+        Spatial_Boost[Apply Spatial Proximity Boost]
+        Temporal_Check[Enforce Temporal Validation]
+        Agg_Score[Aggregate Combined Score]
     end
 
-    UI --> Auth
-    UI --> Items
-    Chat --> ChatAPI
+    API_Lost --> Query_LSH
+    LSH_Index --> Query_LSH
+    Query_LSH --> Calc_Sim
+    Calc_Sim --> Spatial_Boost
+    Spatial_Boost --> Temporal_Check
+    Temporal_Check --> Agg_Score
 
-    Items --> ML Pipeline
-    ML Pipeline --> LSH
-    Items --> DB
+    %% Outputs & Alerts
+    subgraph Alerts [Multi-Channel Notification Pipeline]
+        SMS[Twilio SMS & Voice Alerts]
+        Mail[SMTP Email Notification]
+        Speak[pyttsx3 Speech Alert]
+    end
 
-    ChatAPI --> LSH
-    LSH --> DB
-    DB --> RAG Engine
-    RAG Engine --> Chat
+    Agg_Score -->|Score >= 0.80| Alerts
+    Agg_Score -->|Log Match| Admin[Admin Match Portal]
+
+    %% RAG Pipeline
+    subgraph RAG [Conversational RAG Pipeline]
+        RAG_Query[LSH Vector Search]
+        Fetch_Ctx[Fetch Match Context from MongoDB]
+        LLM_Gen{RAG Generation Tier}
+        Gemini[Google Gemini API]
+        T5[Local CPU FLAN-T5-Small]
+        Ollama[Local Ollama Service]
+        Fallback[Deterministic Text Formatter]
+    end
+
+    API_Chat --> RAG_Query
+    LSH_Index --> RAG_Query
+    RAG_Query --> Fetch_Ctx
+    Fetch_Ctx --> LLM_Gen
+    LLM_Gen -->|Tier 1| Gemini
+    LLM_Gen -->|Tier 2| T5
+    LLM_Gen -->|Tier 3| Ollama
+    LLM_Gen -->|Tier 4| Fallback
+    
+    Gemini --> ChatBubble[Render HTML Markdown Bubble]
+    T5 --> ChatBubble
+    Ollama --> ChatBubble
+    Fallback --> ChatBubble
 ```
 
 ---
 
-## 2. Core Engineering Architecture
+## 2. Core Features & Capabilities
 
-### Multi-Modal Matching Engine (M3E)
-Each report passes through a layered, multi-modal verification system:
-
-#### Layer 1: Visual Feature Extraction (Local Inference)
-* **Engine**: MobileNetV2 (PyTorch / torchvision)
-* **Embedding Size**: 1024–1280 dimensions
-* **Similarity Metric**: Cosine Similarity
-* **Activation Threshold**: 0.82 (configurable)
-
-##### Preprocessing Pipeline
-Before inference, images undergo standardized preparation:
-* Resize to 256px
-* Center-crop to 224px
-* RGB conversion
-* Tensor normalization (using ImageNet means: `[0.485, 0.456, 0.406]` and std: `[0.229, 0.224, 0.225]`)
-
-This guarantees consistent feature maps regardless of original resolution and acts as a neural compression layer.
-
-##### Why Local Inference?
-* Eliminates cloud latency for visual matching
-* Enables sub-second repository-wide vector comparisons
-* Reduces API dependency and cost
-
-#### Layer 2: Lexical & Contextual Matching (Stateless Feature Hashing)
-* **Engine**: Scikit-Learn `HashingVectorizer`
-* **Technique**: Character and Word-level Trigram Analysis (`ngram_range=(1,3)`)
-* **Representation**: Sparse matrix ($2^{10}$ / 1024-dimensional space)
-
-The system captures semantic substructures such as:
-* "black backpack"
-* "broken hinge"
-* "library near LHC"
-
-By replacing standard `TfidfVectorizer` with `HashingVectorizer`, the vectorization is completely stateless. This ensures consistent vector mappings across multiple nodes without requiring shared vocabulary dictionaries.
-
-#### Layer 3: Spatio-Temporal Correlation Engine
-##### Spatial Logic
-A landmark-aware matching algorithm weights results based on proximity to 50+ predefined campus landmarks (NITK Surathkal optimized), including:
-* Hostels (GH-1 to GH-6, Mega Towers)
-* LHC-A, LHC-B
-* Central Library
-* Main Building
-* SAC, SJA
-* Sports Complex
-* NITK Beach
-
-Matches sharing validated landmark tags receive weighted boosts.
-
-##### Temporal Validation
-A sequence-validation algorithm enforces:
-$$T_{\text{lost}} < T_{\text{found}}$$
-This prevents false positives from historical records and improves reliability of match suggestions.
+* **Decoupled Local Vector Search**: Zero cloud dependencies for database vector lookups, using a customized random projection Locality Sensitive Hashing (LSH) index.
+* **Stateless NLP Representations**: Uses a `HashingVectorizer` mapping raw strings to a fixed 128-dimensional space. This eliminates the dictionary/vocabulary synchronization bottleneck across distributed nodes.
+* **Local Visual Feature Extraction**: Compresses and normalizes images, executing local **MobileNetV2** (PyTorch) visual inference to generate 1280-dimensional embeddings.
+* **Tiered Conversational RAG Copilot**: A multi-tiered chat interface that works both online (via Gemini API) and completely offline (using **FLAN-T5-Small** loaded directly in-process, or a local **Ollama** link, with a **deterministic local formatter** fallback if no models are active).
+* **Multi-Modal Ensemble Matcher**: Scores candidate pairs by combining text, visual, temporal, and spatial factors.
+* **Offline-to-Online QR Bridge**: Generates custom printable Base64 QR code recovery tags for physical assets. Scanning a tag opens a secure, anonymous claim flow.
+* **Multi-Channel Alerts**: Automated messaging via **SMTP Email**, local **Text-To-Speech (pyttsx3)**, and **Twilio telephony (SMS & Voice Calls)**.
+* **Administrative Audit Center**: Dashboard for tracking claim activities, verifying item states, deletion synchronization (with LSH safety hooks), and registry metrics.
 
 ---
 
-## 3. Decoupled Local Vector Database Design
+## 3. Mathematical Logic & Formulations
 
-To ensure horizontal scaling across multi-node deployments without external dictionary synchronization, LostLink implements a **custom Locality Sensitive Hashing (LSH) index** for sub-linear semantic retrieval.
+### Locality Sensitive Hashing (LSH) Random Projection
+To map high-dimensional embeddings (e.g., 1280-dim image features) to discrete index buckets, we use random hyperplane projections. Let $v \in \mathbb{R}^D$ be an embedding vector, and $R \in \mathbb{R}^{K \times D}$ be a random projection matrix generated with normal distribution $\mathcal{N}(0, 1)$, where $K$ is the number of hyperplanes (e.g., 12 for images). 
 
-### Locality Sensitive Hashing (LSH) Mechanics
-High-dimensional dense features are mapped to low-dimensional binary keys using random projection. Given a vector $v$ and a random projection matrix $R \in \mathbb{R}^{K \times D}$:
+The $K$-bit binary hash key $h(v)$ is computed as:
 $$h(v) = \text{sign}(R \cdot v)$$
-This results in a $K$-bit binary hash representing the signature bucket.
-* **Bucket Indexing**: Buckets are persisted locally using a serialized Python `.pkl` cache store, synchronized automatically on application boot from the MongoDB document store.
-* **Search Speed**: Finding nearest neighbors is reduced to calculating the Hamming Distance between the query signature and indexed keys, resulting in $O(\log N)$ sub-linear retrieval complexity compared to $O(N)$ database scans.
+Where the sign function converts positive values to `1` and negative values to `0`. 
+
+During queries, candidate matches are retrieved from all buckets $b$ whose Hamming distance from the query signature $h(q)$ is within the maximum distance threshold $M$:
+$$\text{Dist}_{\text{Hamming}}(h(q), b) = \sum_{i=1}^{K} [h(q)_i \neq b_i] \le M$$
+
+### Ensemble Match Scoring Algorithm
+When a lost item $L$ is matched against a found item $F$, the final unified match score $S$ is calculated as follows:
+$$S = w_{\text{text}} \cdot S_{\text{text}}(L, F) + w_{\text{visual}} \cdot S_{\text{visual}}(L, F) + S_{\text{spatial}}(L, F) - S_{\text{temporal}}(L, F)$$
+
+Where:
+* **Textual Similarity ($S_{\text{text}}$)**: Cosine similarity of stateless feature hashed vectors:
+  $$S_{\text{text}}(L, F) = \frac{v_{L,\text{text}} \cdot v_{F,\text{text}}}{\|v_{L,\text{text}}\| \|v_{F,\text{text}}\|}$$
+* **Visual Similarity ($S_{\text{visual}}$)**: Cosine similarity of the extracted MobileNetV2 embeddings:
+  $$S_{\text{visual}}(L, F) = \frac{v_{L,\text{vis}} \cdot v_{F,\text{vis}}}{\|v_{L,\text{vis}}\| \|v_{F,\text{vis}}\|}$$
+* **Spatial Proximity Boost ($S_{\text{spatial}}$)**: landmark correlation weighting. If both items are associated with matching coordinates or locations within NITK landmark groups (e.g., Central Library, LHC), $S_{\text{spatial}} = 0.10$, else $0.0$.
+* **Temporal Discrepancy Penalty ($S_{\text{temporal}}$)**: If the lost item timestamp occurs after the found item timestamp ($T_{\text{lost}} > T_{\text{found}}$), the match is invalidated ($S_{\text{temporal}} = \infty$) to prevent sequence anomalies.
 
 ---
 
-## 4. Conversational RAG Architecture
+## 4. How to Run the Platform
 
-The platform supports a tiered, highly resilient conversational search framework running completely offline or fallback cloud-assisted.
+### Method A: Single-Command Containerized Run (Recommended)
+This method spins up the FastAPI API container and a MongoDB database container linked over a local network.
 
-```
-+--------------------------------------------------------+
-|                   Query: /api/chat                     |
-+--------------------------------------------------------+
-                           |
-            [Query Local LSH Vector Database]
-                           |
-         +-----------------+-----------------+
-         |                                   |
-    [Found Candidates]             [No Matches Found]
-         |                                   |
-         v                                   v
-+------------------------+        +----------------------+
-| Determine RAG Provider |        | Deterministic No-Match |
-+------------------------+        +----------------------+
-         |
-         +-------> [Tier 1: Gemini Cloud API] (If Configured)
-         |
-         +-------> [Tier 2: Local CPU LLM (FLAN-T5)] (If Offline/No Key)
-         |
-         +-------> [Tier 3: Local Ollama Instance] (Fallback)
-         |
-         +-------> [Tier 4: Local Deterministic Formatter] (No-Resource Fallback)
-```
+1. **Configure Environment Variables**:
+   Copy `.env.example` to create `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   *If you do not want to use Google Gemini, leave the `GEMINI_API_KEY` placeholder. The backend will automatically run FLAN-T5 locally on your CPU.*
 
-### Local CPU-Optimized Model Execution
-If no cloud API key is configured, the system loads the **`google/flan-t5-small`** model (80M parameters) directly into RAM using Hugging Face **`AutoTokenizer`** and **`AutoModelForSeq2SeqLM`** classes.
-* **CPU Footprint**: Runs completely on host CPUs without requiring CUDA or GPU acceleration.
-* **Memory Safety**: The model and tokenizer are lazily loaded as singletons on the first API call, keeping the application idle RAM minimal (~80MB).
+2. **Start the Docker Stack**:
+   ```bash
+   docker compose up --build
+   ```
+   * The application UI will be exposed on: `http://localhost:8000`
+   * MongoDB will run on: `mongodb://localhost:27017`
 
 ---
 
-## 5. Image Engineering & Payload Optimization
+### Method B: Native Host-Level Run (Without Docker)
+This method runs the server natively on your host machine.
 
-High-resolution image uploads can cause increased payload sizes, slower mobile uploads, higher storage usage, and memory spikes during inference. LostLink implements a two-stage optimization pipeline:
+1. **Prerequisites**:
+   * Install MongoDB on your system and start the service:
+     ```bash
+     sudo systemctl start mongod
+     ```
+   * Install python virtual environment tools:
+     ```bash
+     sudo apt-get install python3-venv  # Debian/Ubuntu systems
+     ```
 
-### Stage 1: Intelligent Image Compression
-Before storage:
-* Images are resized
-* Quality is reduced within perceptual tolerance
-* RGB standardization is applied
+2. **Setup Virtual Environment & Install Dependencies**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-This reduces upload latency, storage footprint, and inference memory load.
+3. **Configure Environment Variables**:
+   Create `.env` file in the root directory:
+   ```env
+   MONGO_URI=mongodb://localhost:27017
+   JWT_SECRET=secret123_change_this_in_production
+   GEMINI_API_KEY=your_optional_gemini_key
+   ```
 
-### Stage 2: Image → Semantic Text Transformation
-Instead of repeatedly transmitting image binaries:
-1. Image is analyzed once.
-2. Semantic description is generated.
-3. Structured textual representation is stored.
-
-This allows search matchers to perform similarity evaluations on image-derived text, reducing repeated cloud API calls and generating searchable metadata.
-
----
-
-## 6. Recovery Infrastructure & Features
-
-### QR-Based Offline-to-Online Bridge
-* Unique QR codes are generated per item using the `qrcode` library and encoded in Base64.
-* Printable tags can be affixed to physical assets.
-* Scanning the QR opens a secure recovery portal where the finder can notify the owner without needing an account.
-
-### Multi-Channel Notification Pipeline
-* **SMTP Email Alerts**: Automated upon high-confidence matches, containing direct claim links and context summaries.
-* **Voice Engine (Local)**: Local `pyttsx3`-based speech alerts.
-* **Telephony Integration**: Twilio API integration to trigger automated phone calls for high-priority reports.
-
----
-
-## 7. Authentication & Security
-
-### JWT Infrastructure
-* Stateless session management.
-* Bearer token authentication.
-* Protected API endpoints.
-
-### Password Security
-* `bcrypt` salted hashing.
-* 72-byte safe validation.
-* Secure credential storage.
+4. **Start the FastAPI Server**:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+   * Access the frontend app by opening: `http://localhost:8000` in your web browser.
 
 ---
 
-## 8. Performance Benchmarks
+## 5. Performance Benchmarks
 
 The following benchmarks were recorded on an Intel i7-11800H CPU @ 2.30GHz with 16GB RAM:
 
@@ -232,53 +203,17 @@ The following benchmarks were recorded on an Intel i7-11800H CPU @ 2.30GHz with 
 | **Local FLAN-T5 (CPU)** | **None (100% Offline)** | **480 ms** | **~240 MB** |
 | **Local LSH Formatter** | **None (100% Offline)** | **0.8 ms** | < 1 MB |
 
----
-
-## 9. Research Positioning: Deterministic, Not Agentic
-
-LostLink AI is a deterministic trigger-response infrastructure where every match is backed by:
-* Cosine Similarity scores
-* HashingVectorizer weight distributions
-* Spatio-temporal validation
-* Configurable thresholds
-
-AI/LLM is used purely as a verification and formatting layer, not a decision-making authority. This design guarantees **explainability**, **auditability**, **predictability**, and **production reliability**.
-
----
-
-## 10. Demonstrated Engineering Competencies
-
-* Multi-modal AI system design
-* Neural feature extraction pipelines
-* NLP similarity modeling (HashingVectorizer & Trigrams)
-* Local CPU LLM integration with direct AutoModel classes
-* High-performance REST API design
-* Async backend engineering (FastAPI BackgroundTasks)
-* Image compression optimization
-* Security-first authentication systems
-* Containerized multi-container cloud deployment
-
----
-
-## 11. Docker & Local Deployment Setup
-
-The entire stack is containerized using a multi-container Docker Compose setup containing the FastAPI application and a persistent MongoDB database.
-
-### 1. Configure the Environment
-Copy the configuration template and modify `.env`:
+To record actual, live benchmarks on your own machine, execute:
 ```bash
-cp .env.example .env
+docker compose exec lostlink-api python3 benchmark.py
 ```
-*Specify your Google Gemini Key to enable premium cloud features, or leave it blank to automatically default to the local FLAN-T5 model.*
 
-### 2. Launch the Application Stack
-Build and run the containers in a single command:
-```bash
-docker compose up --build
-```
-* **API Service**: Listening on `http://localhost:8000`
-* **MongoDB Store**: Running on `mongodb://localhost:27017`
+---
 
-### 3. Verification & API Tests
-* **Core Application**: Open `http://localhost:8000` to report items, search registries, and scan QR codes.
-* **Conversational Copilot**: Navigate to `http://localhost:8000/chat.html` to query the local vector index using natural language.
+## 6. Demonstrated Engineering Competencies
+
+* **Multi-Modal AI System Design**: Engineered hybrid visual/textual pipelines that extract features locally using PyTorch.
+* **Vector Database Engineering**: Designed and implemented a custom random projection LSH index to achieve sub-linear matching speeds.
+* **Local CPU NLP Execution**: Integrated Hugging Face AutoClasses (`AutoTokenizer` and `AutoModelForSeq2SeqLM`) to run low-resource text generation.
+* **Stateless Distributed Embeddings**: Configured stateless `HashingVectorizer` pipelines, avoiding shared vocabulary dictionaries across nodes.
+* **Robust Backend Design**: Built FastAPI routes supporting token-based JWT sessions, secure image upload compression, and non-blocking background threads.
