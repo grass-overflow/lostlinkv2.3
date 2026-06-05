@@ -319,3 +319,8 @@ This method runs the server natively on your host machine.
    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
    * Access the frontend app by opening: `http://localhost:8000` in your web browser.
+  
+## 10. Deployment 
+[Try it out](https://lostlink-03c3.onrender.com/)
+<br>
+Deployed on render
