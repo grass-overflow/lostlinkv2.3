@@ -1,27 +1,29 @@
 # LostLink AI
-## Standalone Multi-Modal RAG Platform & Decoupled Vector Search Engine
 
-LostLink AI is a self-contained intelligent asset recovery platform. The architecture transitions from typical API-dependent cloud architectures into a standalone system featuring local Locality Sensitive Hashing (LSH) vector database indexing, local visual feature extraction, and a completely offline CPU-optimized Retrieval-Augmented Generation (RAG) conversational engine.
+LostLink AI is a lost-and-found platform that combines image matching,
+text similarity search, and retrieval-augmented question answering.
+The system uses local vector indexing, visual feature extraction,
+and a CPU-compatible RAG pipeline to operate with minimal cloud dependencies.
 
+## Overview
 
+LostLink AI is an AI-powered lost-and-found platform that combines:
+
+- Multi-modal matching (image + text)
+- Custom LSH vector database
+- Local RAG assistant
+- Real-time notifications
+- Dockerized deployment
+
+Tech Stack:
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
 ---
 
-## Table of Contents
-1. [System Architecture & Flow](#1-system-architecture--flow)
-2. [Project Structure](#2-project-structure)
-3. [Deep-Dive Engineering Architecture](#3-deep-dive-engineering-architecture)
-   - [Visual Feature Extraction (MobileNetV2)](#visual-feature-extraction-mobilenetv2)
-   - [Stateless NLP Vectorization (HashingVectorizer)](#stateless-nlp-vectorization-hashingvectorizer)
-   - [Spatio-Temporal Proximity Calculations](#spatio-temporal-proximity-calculations)
-4. [Decoupled LSH Vector Database Design](#4-decoupled-lsh-vector-database-design)
-5. [Conversational RAG Decision Logic](#5-conversational-rag-decision-logic)
-6. [Database Schema Specifications](#6-database-schema-specifications)
-7. [API Endpoint Specifications](#7-api-endpoint-specifications)
-8. [Features & Capabilities](#8-features--capabilities)
-9. [Performance Benchmarks](#9-performance-benchmarks)
-10. [Detailed Installation & Setup](#10-detailed-installation--setup)
-
----
 
 ## 1. System Architecture & Flow
 
@@ -41,7 +43,7 @@ flowchart TD
         LSH_Index[[Local LSH Vector Index]]
     end
 
-    API_Found --> Compress[Intelligent Image Compressor]
+    API_Found --> Compress[ Image Compressor]
     Compress --> Extract_Vis[MobileNetV2 Visual Embeddings]
     API_Found --> Extract_Txt[HashingVectorizer Text Embeddings]
     
@@ -69,7 +71,7 @@ flowchart TD
     Temporal_Check --> Agg_Score
 
     %% Outputs & Alerts
-    subgraph Alerts [Multi-Channel Notification Pipeline]
+    subgraph Alerts [Notification Pipeline]
         SMS[Twilio SMS & Voice Alerts]
         Mail[SMTP Email Notification]
         Speak[pyttsx3 Speech Alert]
@@ -79,7 +81,7 @@ flowchart TD
     Agg_Score -->|Log Match| Admin[Admin Match Portal]
 
     %% RAG Pipeline
-    subgraph RAG [Conversational RAG Pipeline]
+    subgraph RAG [Retrieval and Response Pipeline]
         RAG_Query[LSH Vector Search]
         Fetch_Ctx[Fetch Match Context from MongoDB]
         LLM_Gen{RAG Generation Tier}
@@ -115,7 +117,7 @@ lostlinkv2.3/
 ├── models.py                   # Pydantic schemas for request validation
 ├── vector_db.py                # Custom Locality Sensitive Hashing (LSH) Vector Index Engine
 ├── ai_matcher.py               # Ensemble Matching Engine, Feature Extraction, & RAG Agent
-├── notif.py                    # Multi-channel notification pipeline (Twilio SMS/Call, SMTP, local TTS)
+├── notif.py                    # notification pipeline (Twilio SMS/Call, SMTP, local TTS)
 ├── benchmark.py                # Performance testing script (LSH vs Linear Scan & FLAN-T5 inference)
 ├── Dockerfile                  # Multi-stage Docker container build instructions
 ├── docker-compose.yml          # FastAPI & MongoDB Docker orchestrator configuration
@@ -139,14 +141,15 @@ lostlinkv2.3/
 
 ---
 
-## 3. Deep-Dive Engineering Architecture
+## 3. System Design
 
 ### Multi-Modal Matching Engine (M3E)
 To transition from arbitrary heuristic weights to data-driven aggregation, LostLink utilizes **Logistic Regression** classifier models (`scikit-learn`) for score aggregation:
 * **Features Used (With Image)**: `[visual_similarity, text_similarity, distance_km, time_gap_days]`
 * **Features Used (Text Only)**: `[text_similarity, distance_km, time_gap_days]`
-* **Training Pipeline**: Generates a robust synthetic training baseline (handling edge-cases like negative time gaps, geographic disparities, and matching textual similarities) combined dynamically with historical confirmed match labels retrieved from MongoDB on startup.
-* **Output**: Computes a mathematically grounded match probability score via `.predict_proba()` (thresholded at $\ge 0.70$).
+* **Training Pipeline**: Training data is generated using synthetic match and non-match examples
+and is incrementally supplemented with historical confirmed matches stored in MongoDB.
+* **Output**: Computes a match probability score using Logistic Regression.
 
 ### Visual Feature Extraction (MobileNetV2)
 * **Model**: MobileNetV2 pretrained on ImageNet
@@ -171,10 +174,10 @@ transforms = T.Compose([
 ### Stateless NLP Vectorization (HashingVectorizer)
 Standard Bag-of-Words and TF-IDF models require generating a vocabulary dictionary of size $V$ across the entire database. If a new node starts up, it must download or synchronize this vocabulary. 
 
-To achieve **stateless scale** and avoid hash collisions, LostLink uses the hashing trick scaled to higher dimensions:
-* **Vectorizer**: `HashingVectorizer(n_features=1024, alternate_sign=False)`
-* **Hash Function**: MurmurHash3
-* **Vocabulary Requirement**: **None**. Word tokens are mapped directly to indices in a 1024-dimensional space via their hash values. This allows stateless, zero-overhead, collision-resistant text feature extraction.
+To avoid maintaining a shared vocabulary across deployments,
+LostLink uses HashingVectorizer with 1024 dimensions.
+Tokens are mapped directly into a fixed-dimensional feature space,
+eliminating vocabulary synchronization overhead while keeping memory usage predictable.
 
 ### Spatial and Temporal Engine
 * **Spatial Logic**: Leverages exact coordinate-based matching. Users can optionally input exact `latitude` and `longitude` coordinates during item reporting. If coordinates are not provided, landmark-based geocoding automatically resolves the location against a pre-mapped campus landmark dictionary (`NITK_COORDINATES`). The system calculates the physical distance between reports using the **Haversine formula**.
@@ -182,7 +185,7 @@ To achieve **stateless scale** and avoid hash collisions, LostLink uses the hash
 
 ---
 
-## 4. Decoupled LSH Vector Database Design
+## 4. LSH Vector Database Design
 
 Given a high-dimensional vector $v \in \mathbb{R}^D$ (where $D=1280$ for images, $D=1024$ for text), LSH maps it to a low-dimensional binary signature key $h(v) \in \{0, 1\}^K$ using random projection hyperplanes.
 
@@ -191,90 +194,11 @@ Given a high-dimensional vector $v \in \mathbb{R}^D$ (where $D=1280$ for images,
    $$R_{ij} \sim \mathcal{N}(0, 1)$$
 2. **Hashing**: The binary key is calculated by projecting $v$ onto each hyperplane and taking the sign:
    $$h(v) = \text{sign}(R \cdot v) = \begin{cases} 1 & \text{if } R \cdot v \ge 0 \\ 0 & \text{if } R \cdot v < 0 \end{cases}$$
-3. **Retrieval**: When querying with $q$, the index calculates $h(q)$ and retrieves items stored in buckets whose Hamming Distance is within bounds:
-   $$\text{Dist}_{\text{Hamming}}(h(q), b) = \sum_{i=1}^{K} (h(q)_i \oplus b_i) \le M$$
-   Where $\oplus$ is the XOR operator and $M$ is the maximum Hamming distance threshold.
+3. **Retrieval**: When querying with $q$, the index calculates $h(q)$ and retrieves items stored in buckets whose Hamming Distance is within bounds.
 
 ---
 
-## 5. Conversational RAG Decision Logic
-
-The backend `/api/chat` route processes natural language queries using a tiered provider logic to ensure maximum resilience and local execution capability:
-
-```python
-# RAG Execution Tree
-if gemini_key_is_valid:
-    try:
-        # Tier 1: Cloud-based Google Gemini
-        return generate_with_gemini(retrieved_context, query)
-    except Exception:
-        pass
-
-try:
-    # Tier 2: In-Process local CPU LLM (FLAN-T5-Small)
-    return generate_with_local_flan_t5(retrieved_context, query)
-except Exception:
-    pass
-
-try:
-    # Tier 3: Local Ollama link (e.g. Llama3)
-    return generate_with_ollama(retrieved_context, query)
-except Exception:
-    pass
-
-# Tier 4: Zero-Resource Deterministic Formatter
-return generate_deterministic_template(retrieved_context)
-```
-
----
-
-## 6. Database Schema Specifications
-
-### `users` Collection
-Stores registered user accounts:
-```json
-{
-  "_id": "ObjectId",
-  "username": "student123",
-  "password_hash": "$2b$12$...",
-  "role": "user" 
-}
-```
-
-### `items` Collection
-Stores lost and found records:
-```json
-{
-  "_id": "ObjectId",
-  "type": "lost | found",
-  "item_name": "Lenovo Ideapad",
-  "location": "Central Library",
-  "date": "2026-05-31",
-  "time": "12:30",
-  "description": "Grey laptop with power cable",
-  "image_path": "uploads/image_compressed.jpg",
-  "is_claimed": false,
-  "qr_code_base64": "data:image/png;base64,...",
-  "reported_by": "student123"
-}
-```
-
-### `matches` Collection
-Stores ensemble matches identified by the backend:
-```json
-{
-  "_id": "ObjectId",
-  "lost_item_id": "ObjectId",
-  "found_item_id": "ObjectId",
-  "score": 0.86,
-  "status": "pending | claimed",
-  "timestamp": "2026-05-31T14:10:00"
-}
-```
-
----
-
-## 7. API Endpoint Specifications
+## 5. API Endpoint Specifications
 
 ### Authentication Routes (`routers/auth_router.py`)
 * **`POST /api/auth/register`**: Registers a new user. Hashes password using `bcrypt`.
@@ -285,7 +209,7 @@ Stores ensemble matches identified by the backend:
 * **`POST /api/report_found`**: Reports a found item. Preprocesses the uploaded image via PyTorch, extracts normalized visual embeddings, indexes it in the local SQLite-backed LSH Vector DB, and stores it in MongoDB.
 * **`GET /api/items/browse`**: Retrieves active lost and found listings.
 * **`POST /api/items/claim`**: Initiates a claim for a found item using a matching Claim ID.
-* **`POST /api/chat`**: Conversational RAG assistant query. Runs search against the local LSH index and formats/summarizes matches using the active RAG tier.
+* **`POST /api/chat`**: Retrieval and Response Pipeline. Runs search against the local LSH index and formats/summarizes matches using the active RAG tier.
 
 ### Administration Routes (`routers/admin_router.py`)
 * **`GET /api/admin/matches`**: Fetches all identified matches.
@@ -293,10 +217,10 @@ Stores ensemble matches identified by the backend:
 
 ---
 
-## 8. Features & Capabilities
+## 6. Features & Capabilities
 
 * **Local Image Preprocessing**: Automatically downsamples, normalizes, and crops images before vector indexing.
-* **Multi-Channel Notification Pipeline**:
+* **Notification Pipeline**:
   * **SMTP Email**: Sends automated mail matches.
   * **Twilio Voice Calls**: Triggers speech phone alerts for high-priority items.
   * **pyttsx3 Voice Engine**: Local speech output for terminal logging.
@@ -304,7 +228,7 @@ Stores ensemble matches identified by the backend:
 
 ---
 
-## 9. Performance Benchmarks
+## 7. Performance Benchmarks
 
 The following benchmarks were recorded natively inside the containerized CPU environment:
 
@@ -318,16 +242,22 @@ The following benchmarks were recorded natively inside the containerized CPU env
 **Mathematical Analysis of LSH Candidate Coverage:**
 With $K = 8$ hyperplanes (256 buckets) and a Hamming distance query threshold of $M = 3$, the theoretical bucket coverage is:
 $$\text{Coverage} = \frac{\sum_{i=0}^{3} \binom{8}{i}}{256} = \frac{1 + 8 + 28 + 56}{256} = \frac{93}{256} \approx 36.33\%$$
-Under a uniform random distribution of generated mock vectors, this resolves to $\approx 3,633$ candidates, aligning closely with our empirical search size of **3,577** candidates. For real-world correlated data distributions, candidate coverage decreases dramatically, increasing retrieval speedups.
+Under a uniform random distribution of generated mock vectors, this resolves to $\approx 3,633$ candidates. The observed candidate count closely matched the theoretical estimate under the generated benchmark dataset.
 
-### RAG Generation Latency & Footprint
+### 8. RAG Generation Latency & Footprint
 
 | Engine Option | API Dependency | Average Response Latency | RAM Usage |
 | :--- | :--- | :--- | :--- |
 | **Google Gemini Flash** | Cloud API | 1,840 ms | < 5 MB |
-| **Local FLAN-T5 (CPU)** | **None (100% Offline)** | **117.92 ms** | **~240 MB** |
-| **Local LSH Formatter** | **None (100% Offline)** | **0.8 ms** | < 1 MB |
+| **Local FLAN-T5 (CPU)** | None  | **117.92 ms** | **~240 MB** |
+| **Local LSH Formatter** | None  | **0.8 ms** | < 1 MB |
 
+Test Environment
+
+CPU: Intel i5-12450H
+RAM: 16 GB
+Dataset Size: 10,000 records
+OS: Ubuntu 24.04
 To record actual, live benchmarks on your own machine, execute:
 ```bash
 docker compose exec lostlink-api python3 benchmark.py
@@ -335,7 +265,7 @@ docker compose exec lostlink-api python3 benchmark.py
 
 ---
 
-## 10. Detailed Installation & Setup
+## 9. Detailed Installation & Setup
 
 ### Method A: Single-Command Containerized Run (Recommended)
 This method spins up the FastAPI API container and a MongoDB database container linked over a local network.
